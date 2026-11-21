@@ -1,0 +1,171 @@
+// One-command setup. Run it inside your clone of this repository:
+//
+//   node src/setup.mjs
+//
+// It registers a GitHub App that belongs to you (read-only "Administration"
+// access, nothing else), stores its key as a repository secret, and starts the
+// first collection. You confirm twice in the browser: once to create the app,
+// once to choose the repositories it may read.
+//
+// Nothing is sent anywhere except github.com. The private key goes straight
+// from GitHub into your repository's secrets; it is never written to disk or
+// shown on screen.
+import http from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
+import { EXAMPLE_REPO, loadConfig } from './config.mjs';
+import { generatePassphrase } from './lib/crypto.mjs';
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+export function buildManifest({ owner, repoUrl, port }) {
+  return {
+    name: `mimir-${owner}`.slice(0, 34),
+    url: repoUrl,
+    description: 'Reads traffic figures for my own repositories. Created by Wi24rd Mimir.',
+    hook_attributes: { url: repoUrl, active: false },
+    redirect_url: `http://127.0.0.1:${port}/callback`,
+    public: false,
+    default_permissions: { administration: 'read' },
+    default_events: [],
+  };
+}
+
+// Starts a listener on 127.0.0.1 only. "/start" sends the browser to GitHub
+// with the manifest; GitHub sends it back to "/callback" with a one-time code,
+// which is exchanged for the app's id and key.
+export function startFlow({ owner, repoUrl, web = 'https://github.com', api = 'https://api.github.com', fetchImpl = fetch, timeoutMs = 15 * 60 * 1000 }) {
+  const state = randomBytes(24).toString('hex');
+  let finish;
+  let fail;
+  const done = new Promise((res, rej) => { finish = res; fail = rej; });
+  let port = 0;
+  let used = false;
+
+  const page = (res, status, title, body) => {
+    res.writeHead(status, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action ${web}`,
+      'referrer-policy': 'no-referrer',
+      'x-content-type-options': 'nosniff',
+    });
+    res.end(`<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><body style="font:16px system-ui;max-width:36rem;margin:4rem auto;padding:0 1rem"><h1>${esc(title)}</h1>${body}`);
+  };
+
+  const server = http.createServer(async (req, res) => {
+    if (req.headers.host !== `127.0.0.1:${port}` || req.method !== 'GET') { res.writeHead(400).end(); return; }
+    const url = new URL(req.url, `http://127.0.0.1:${port}`);
+    if (url.pathname === '/start') {
+      const manifest = JSON.stringify(buildManifest({ owner, repoUrl, port }));
+      page(res, 200, 'Wi24rd Mimir setup', `<p>Sending you to GitHub to create your own Mimir app.</p><form id="f" method="post" action="${esc(web)}/settings/apps/new?state=${state}"><input type="hidden" name="manifest" value="${esc(manifest)}"><button>Continue to GitHub</button></form><script>document.getElementById("f").submit()</script>`);
+      return;
+    }
+    if (url.pathname === '/callback') {
+      const got = Buffer.from(url.searchParams.get('state') ?? '');
+      const code = url.searchParams.get('code') ?? '';
+      const stateOk = got.length === state.length && timingSafeEqual(got, Buffer.from(state));
+      if (used || !stateOk || !/^[A-Za-z0-9_-]{1,120}$/.test(code)) { page(res, 400, 'Not accepted', '<p>This request did not come from the setup you started. Nothing was changed.</p>'); return; }
+      used = true;
+      try {
+        const r = await fetchImpl(`${api}/app-manifests/${code}/conversions`, { method: 'POST', headers: { accept: 'application/vnd.github+json', 'user-agent': 'wi24rd-mimir' } });
+        if (!r.ok) throw new Error(`GitHub answered HTTP ${r.status} when the app was being created`);
+        const app = await r.json();
+        if (!app.pem || !app.client_id || !app.slug) throw new Error('GitHub did not return the expected app details');
+        page(res, 200, 'App created', '<p>Return to the terminal to finish.</p>');
+        finish({ id: app.id, clientId: app.client_id, slug: app.slug, pem: app.pem, permissions: app.permissions ?? {} });
+      } catch (e) {
+        page(res, 502, 'Something went wrong', `<p>${esc(e.message)}</p>`);
+        fail(e);
+      }
+      return;
+    }
+    res.writeHead(404).end();
+  });
+
+  const timer = setTimeout(() => fail(new Error('timed out waiting for GitHub (15 minutes)')), timeoutMs);
+  timer.unref();
+  const close = () => { clearTimeout(timer); server.close(); server.closeAllConnections?.(); };
+  const ready = new Promise((res) => server.listen(0, '127.0.0.1', () => { port = server.address().port; res(`http://127.0.0.1:${port}/start`); }));
+  return { ready, done, close };
+}
+
+function gh(args, { input, quiet = false } = {}) {
+  const r = spawnSync('gh', args, { input, encoding: 'utf8', stdio: ['pipe', 'pipe', quiet ? 'pipe' : 'inherit'] });
+  if (r.error) throw new Error('GitHub CLI (gh) was not found. Install it from https://cli.github.com and run "gh auth login".');
+  return { ok: r.status === 0, out: (r.stdout ?? '').trim() };
+}
+
+function openBrowser(url) {
+  const cmd = process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : ['xdg-open', [url]];
+  spawnSync(cmd[0], cmd[1], { stdio: 'ignore' });
+}
+
+async function main() {
+  const force = process.argv.includes('--force');
+  const say = console.log;
+  const config = loadConfig();
+  if (config.repos.includes(EXAMPLE_REPO)) throw new Error(`mimir.json still holds the example "${EXAMPLE_REPO}". Replace it with your own repositories, save, and run setup again.`);
+
+  if (!gh(['auth', 'status'], { quiet: true }).ok) throw new Error('Not signed in. Run "gh auth login" first.');
+  const view = gh(['repo', 'view', '--json', 'nameWithOwner,url,visibility'], { quiet: true });
+  if (!view.ok) throw new Error('Run this inside your clone of the Mimir repository, after it has been pushed to GitHub.');
+  const repo = JSON.parse(view.out);
+  const isPrivate = repo.visibility !== 'PUBLIC';
+
+  say(`\nWi24rd Mimir setup\n  Data repository : ${repo.nameWithOwner} (${isPrivate ? 'private' : 'public'})\n  Mode            : ${config.visibility}\n  Tracking        : ${config.repos.join(', ')}\n`);
+  if (config.visibility === 'private' && !isPrivate) throw new Error('mimir.json says "private", but this repository is public. Make the repository private, or choose "encrypted" or "public".');
+  if (config.visibility === 'public') say('  Note: in "public" mode anyone can read the collected figures.\n');
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const existing = gh(['variable', 'get', 'MIMIR_APP_CLIENT_ID'], { quiet: true });
+    let slug = gh(['variable', 'get', 'MIMIR_APP_SLUG'], { quiet: true }).out;
+    if (existing.ok && existing.out && !force) {
+      say('An app is already connected to this repository. Skipping app creation (use --force to create a new one).');
+    } else {
+      const flow = startFlow({ owner: config.owner, repoUrl: repo.url });
+      const startUrl = await flow.ready;
+      say(`Step 1 of 2: create your app. Opening the browser.\n  If nothing opens, go to: ${startUrl}\n`);
+      openBrowser(startUrl);
+      let app;
+      try { app = await flow.done; } finally { flow.close(); }
+      if (app.permissions.administration !== 'read') say('  Warning: GitHub did not confirm "Administration: read". Check the app\'s permissions.');
+      if (!gh(['secret', 'set', 'MIMIR_APP_PRIVATE_KEY'], { input: app.pem }).ok) throw new Error('Could not store the app key as a repository secret.');
+      app.pem = '';
+      if (!gh(['variable', 'set', 'MIMIR_APP_CLIENT_ID', '--body', app.clientId]).ok) throw new Error('Could not store the app client id.');
+      gh(['variable', 'set', 'MIMIR_APP_SLUG', '--body', app.slug]);
+      slug = app.slug;
+      say(`  App "${slug}" created. Its key is stored as a secret in ${repo.nameWithOwner}.\n`);
+    }
+
+    if (config.visibility === 'encrypted') {
+      const secrets = gh(['secret', 'list', '--json', 'name'], { quiet: true });
+      const has = secrets.ok && JSON.parse(secrets.out).some((s) => s.name === 'MIMIR_PASSPHRASE');
+      if (!has) {
+        const passphrase = generatePassphrase();
+        if (!gh(['secret', 'set', 'MIMIR_PASSPHRASE'], { input: passphrase }).ok) throw new Error('Could not store the passphrase.');
+        say(`Your passphrase. It opens the dashboard and is shown only this once.\nSave it in your password manager:\n\n    ${passphrase}\n`);
+        await rl.question('Press Enter when you have saved it. ');
+      }
+    }
+
+    if (slug) {
+      const install = `https://github.com/apps/${slug}/installations/new`;
+      say(`\nStep 2 of 2: choose the repositories the app may read.\n  Choose "Only select repositories" and pick the ones listed above.\n  If nothing opens, go to: ${install}\n`);
+      openBrowser(install);
+      await rl.question('Press Enter when the app is installed. ');
+    }
+
+    if (gh(['workflow', 'run', 'collect.yml']).ok) say(`\nFirst collection started. Follow it with: gh run watch\n`);
+    else say('\nCould not start the first collection. Start it from the Actions tab ("Collect" > "Run workflow").\n');
+  } finally {
+    rl.close();
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { console.error(`\nSetup stopped: ${e.message}`); process.exit(1); });
+}
