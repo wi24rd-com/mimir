@@ -1,7 +1,7 @@
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/mimir-banner-dark.png">
-    <img src="assets/mimir-banner-light.png" alt="Wi24rd Mimir - GH Insights-tracker" width="800">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/mimir-banner-dark.jpg">
+    <img src="assets/mimir-banner-light.jpg" alt="Wi24rd Mimir - GH Insights-tracker" width="800">
   </picture>
 </h1>
 
