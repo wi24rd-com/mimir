@@ -158,6 +158,8 @@ your README load the picture from there. The repository has to be public.
   without activity. A disabled workflow cannot report its own stop. The
   dashboard and the terminal view warn when nothing has been collected for 36 hours.
 - A failed collection opens an issue in the repository. The next successful one closes it.
+- Commits on the `data` branch carry the day only, not the time. The list of
+  runs under Actions still shows when each collection ran.
 - Solo-maintained in spare time. No support promise, no response times.
 
 ## Development

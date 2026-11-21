@@ -75,9 +75,13 @@ jobs:
             echo "Nothing new to save."
             exit 0
           fi
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit --quiet -m "data: $(date -u +%F)"
+          # The commit carries the day only, so the data branch does not show
+          # at what time a collection ran or was started by hand.
+          day="$(date -u +%F)"
+          GIT_AUTHOR_DATE="${day}T00:00:00Z" GIT_COMMITTER_DATE="${day}T00:00:00Z" \
+            git -c user.name="github-actions[bot]" \
+                -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit --quiet -m "data: ${day}"
           git push --quiet origin data
 
       - name: Report a failed collection

@@ -47,6 +47,8 @@ Resten står i `asewave/evidence/53-template-checks.txt`: actionlint uden fund, 
 3. En kopi følger ikke skabelonen. Opdatering sker ved at kopiere filer over. Der er ikke bygget noget til det.
 4. `tools/fast-tid.sh` og mappen `asewave/` følger med til alle, der bruger skabelonen.
 
+5. **Commits på `data`-grenen bærer nu kun datoen** (midnat UTC), så grenen ikke viser, hvornår en indsamling blev kørt eller startet med hånden. Tilføjet efter offentliggørelsen, før Jans egen opsætning. Listen over kørsler under Actions viser stadig tidspunkterne.
+
 ## Uprøvet
 
 - Vagten i workflowen er kun tjekket med actionlint. Den er ikke set springe et job over på GitHub.
