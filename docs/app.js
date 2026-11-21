@@ -231,7 +231,7 @@ function buildBand() {
     ariaT: 'cmdAria', udenFaner: true, mere: { t: 'more' },
     visninger: { t: 'views_', som: 'faner', punkter: [{ id: 'overview', t: 'vOverview' }, { id: 'traffic', t: 'vTraffic' }, { id: 'downloads', t: 'vDownloads' }, { id: 'sources', t: 'vSources' }, { id: 'well', t: 'vWell', hoejre: true }] },
     faner: [{ id: 'start', grupper: [
-      { t: 'gData', knapper: [{ id: 'refresh', t: 'refresh', ikon: 'opdater', pri: true, ved: () => start() }] },
+      { t: 'gData', knapper: [{ id: 'refresh', t: 'refresh', ikon: 'opdater', pri: true, ved: () => refetch() }] },
       { t: 'gPeriod', knapper: periods.map(([days, key]) => ({ id: `period-${days ?? 'all'}`, t: key, ikon: 'kalender', trykket: ui.days === days, ved: () => { if (ui.days !== days) { ui.days = days; draw(); } } })) },
       { t: 'gPhone', knapper: [{ id: 'phone', t: 'phone', ikon: 'telefon', ved: () => openPhone() }] },
     ] }],
@@ -520,7 +520,8 @@ function unlockView(message, kind = 'field') {
         ui.device = await remembered();
         ui.notice = { variant: 'ok', key: ui.device === 'bio' ? 'rememberDoneBio' : 'rememberDonePlain' };
       } catch (err) {
-        ui.notice = { variant: 'warn', key: err instanceof BioUnsupported ? 'bioUnsupported' : 'rememberFailed' };
+        // The passphrase is still in this tab, so remembering without the check can be offered right away.
+        ui.notice = { variant: 'warn', key: err instanceof BioUnsupported ? 'bioUnsupported' : 'rememberFailed', action: bio?.valgt ? 'rememberPlainNow' : null };
       }
     }
     draw();
@@ -610,7 +611,17 @@ function draw() {
     Kit.navTrae(shell.tree, items, { ariaT: 'navAria', valgt: ui.repo, vedValg: pick });
 
     const page = h('div', { class: 'mimir-side' });
-    if (ui.notice) { page.append(Kit.banner({ variant: ui.notice.variant, tekst: t[ui.notice.key] })); ui.notice = null; }
+    if (ui.notice) {
+      const handling = ui.notice.action === 'rememberPlainNow' && ui.pass
+        ? { tekst: t.rememberPlainNow, ved: async () => {
+          try { await rememberPlain(ui.pass); ui.device = await remembered(); ui.notice = { variant: 'ok', key: 'rememberDonePlain' }; }
+          catch { ui.notice = { variant: 'warn', key: 'rememberFailed' }; }
+          draw();
+        } }
+        : undefined;
+      page.append(Kit.banner({ variant: ui.notice.variant, tekst: ui.notice.text ?? t[ui.notice.key], handling }));
+      ui.notice = null;
+    }
     if (all.health.stale && all.health.lastRun) page.append(Kit.banner({ variant: 'danger', tekst: `${t.staleTitle}. ${t.staleBody(Math.round(all.health.ageHours))}` }));
     for (const e of all.health.errors) page.append(Kit.banner({ variant: 'warn', tekst: t.errorLine(e) }));
     let chip = null;
@@ -719,6 +730,21 @@ function openSettings() {
   Sprog.anvend(dialog.rod);
   update();
   dialog.aabn();
+}
+
+// "Fetch again": reads the stored figures once more and says what came of it.
+// It cannot start a collection; that happens on GitHub, twice a day.
+async function refetch() {
+  const before = ui.state?.health?.last_run ?? null;
+  await start();
+  if (!ui.state || ui.error) return;
+  const t = L();
+  const after = ui.state.health?.last_run ?? null;
+  const age = summarize(ui.state, { days: ui.days }).health.ageHours;
+  ui.notice = after && after !== before
+    ? { variant: 'ok', text: t.fetchNew(t.hoursAgo(age)) }
+    : { variant: 'info', text: after ? t.fetchSame(t.hoursAgo(age)) : t.fetchNone };
+  draw();
 }
 
 // ---------- start ----------

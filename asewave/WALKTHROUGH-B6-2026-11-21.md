@@ -45,6 +45,9 @@ De to ældre forløb er kørt igen efter ændringen, begge uden fejl og uden for
 4. **Et offentliggjort tal kan ikke trækkes tilbage.** Fravælges Brønden, forsvinder den fra `public.json` ved næste indsamling, men de gamle udgaver ligger i `data`-grenens historik. Advarslen i indstillingerne og README siger det.
 5. **Lokalt giver "Fetch again" nu et kald til GitHub hver gang.** Uden net vises de senest hentede tal, og terminalen skriver det.
 
+6. **Efter Jans prøve på Pages med LastPass installeret:** LastPass tog forespørgslen om at oprette en passkey, og den passkey kan ikke beskytte en adgangsfrase. Mimir huskede derfor intet, fire gange i træk, og beskeden forklarede ikke hvorfor. Beskeden nævner nu adgangskodeprogrammet og tilbyder en knap, "Remember without the check" (`61`). Mimir kan ikke forhindre, at en browserudvidelse tager forespørgslen.
+7. **"Fetch again" gav intet synligt svar**, når der ikke var nyere tal. Den siger nu, hvornår der sidst blev indsamlet, og at knappen læser resultatet igen og ikke starter en indsamling (`61`).
+
 ## Kendte begrænsninger og uprøvet
 
 - Den offentlige Brønd er kun prøvet med opdigtede tal og kun i Chrome uden skærm. Den er ikke set på Pages.
