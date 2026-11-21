@@ -133,8 +133,11 @@ path.b-sten:hover { stroke: var(--text); stroke-width: 2; }
   .mimir-to, .mimir-broend { grid-template-columns: minmax(0, 1fr); }
   .titel small { display: none; }
   .titel b { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
-  .cmd-faner { overflow-x: auto; }
+  .cmd-faner { overflow-x: auto; gap: 0; padding-left: var(--space-1); padding-right: var(--space-1); }
   .cmd-faner > .tip-plads { flex: none; }
+  /* Five tabs have to fit a phone: less air around each, and the last one not pushed to the far edge. */
+  .cmd-faner .vfane { padding-left: var(--space-2); padding-right: var(--space-2); }
+  .cmd-faner > .hoejre { margin-left: 0; }
   .fodl { height: auto; min-height: 26px; flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 4px; }
   .fodl .h { margin-left: 0; flex-wrap: wrap; row-gap: 2px; }
   .modal { max-width: calc(100vw - 24px); }

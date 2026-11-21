@@ -49,6 +49,9 @@ Resten står i `asewave/evidence/53-template-checks.txt`: actionlint uden fund, 
 
 5. **Commits på `data`-grenen bærer nu kun datoen** (midnat UTC), så grenen ikke viser, hvornår en indsamling blev kørt eller startet med hånden. Tilføjet efter offentliggørelsen, før Jans egen opsætning. Listen over kørsler under Actions viser stadig tidspunkterne.
 
+6. **Efter første prøve på en rigtig iPhone (Brave, på Pages):** den femte fane var klippet over. Fanerækken er gjort tættere på smalle skærme og passer nu fra 375 px; under det kan den rulles (`54`). Vejledningen i telefon-dialogen siger nu, at ikonet på hjemmeskærmen laves i Safari, og at andre browsere på iPhone måske ikke kan.
+7. **README har fået nye billeder** af demoen i `assets/screens/`: oversigten i lys og mørk, Brønden, trafikgrafen, og tre i telefonbredde. Det gamle `assets/dashboard-demo.png` er fjernet.
+
 ## Uprøvet
 
 - Vagten i workflowen er kun tjekket med actionlint. Den er ikke set springe et job over på GitHub.

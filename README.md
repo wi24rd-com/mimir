@@ -17,9 +17,26 @@ and the dashboard exist and are tested. Publishing the dashboard on GitHub Pages
 the phone setup and the badges are built but have not been run for real. See [`asewave/`](asewave/) for what has been
 verified and what has not.
 
-![The Mimir dashboard with invented figures: views and clones per day for one repository, its release files and where visitors came from](assets/dashboard-demo.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screens/overview-dark.png">
+  <img src="assets/screens/overview-light.png" alt="The Mimir dashboard: a sentence with the totals for the last 14 days, and a table with views, clones, downloads and stars for three repositories" width="800">
+</picture>
 
-*The dashboard with invented figures (`node src/dashboard.mjs --demo`).*
+*Every picture on this page shows the demo with invented figures (`node src/dashboard.mjs --demo`).*
+
+## A look around
+
+Mimir runs in a browser, on any computer and on a phone.
+
+| The Well | One repository over time |
+|---|---|
+| <img src="assets/screens/well-dark.png" alt="The Well: a ring with one stone per day, a line for views per day, and one point per repository with rings for views" width="400"> | <img src="assets/screens/traffic-light.png" alt="A line chart of views and clones per day for one repository" width="400"> |
+| The same figures as one picture, with the table beside it. | Views and clones per day, kept beyond GitHub's 14 days. |
+
+| On a phone | What a visitor sees | Open on phone |
+|---|---|---|
+| <img src="assets/screens/phone-well-dark.png" alt="The Well on a phone" width="240"> | <img src="assets/screens/phone-front-light.png" alt="The front page: the figures the owner chose to publish, and a button that leads to the lock" width="240"> | <img src="assets/screens/phone-dialog-light.png" alt="A dialog with a QR code that holds the address of the dashboard" width="320"> |
+| Light and dark, English and Danish. | Only what you chose to publish. The rest is encrypted. | A QR code with the address, nothing else. |
 
 ## What it collects
 
