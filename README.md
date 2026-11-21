@@ -123,7 +123,7 @@ Wi24rd programs, copied unchanged into `docs/kit/`.
 
 ## On your phone
 
-Not yet tried on a real phone or on GitHub Pages; see [`asewave/`](asewave/).
+Tried on GitHub Pages and in the browser on an iPhone. "Add to Home Screen" and Android have not been tried yet; see [`asewave/`](asewave/).
 
 When the repository is public and GitHub Pages serves the `docs/` folder, the
 dashboard has an address of its own. Turn it on under Settings, Pages: deploy
