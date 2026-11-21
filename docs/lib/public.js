@@ -3,6 +3,8 @@
 // (which gives the badge code to copy). Nothing here reads anything the owner
 // did not list in "public_badges".
 
+import { combineSeries, summarize } from './summary.js';
+
 // The kit's accent in the light theme: white text on it reads well.
 export const BADGE_COLOR = '007864';
 
@@ -46,6 +48,20 @@ export function publicFigures(config, state) {
     else value = repoDownloads(find(state, b.repo));
     return { ...b, value };
   });
+}
+
+// The Well on the front page always covers this many days.
+export const WELL_DAYS = 14;
+
+// What The Well is drawn from, when the owner chose to publish it: views per day
+// added up across the repositories, and views, clones and downloads gained per
+// repository. Nothing else: no visitors, no referrers, no pages.
+export function publicWell(config, state, now = new Date()) {
+  if (!(config.public_badges ?? []).includes('well')) return null;
+  const wanted = new Set(config.repos.map((r) => r.toLowerCase()));
+  const repos = summarize(state, { now, days: WELL_DAYS }).repos.filter((r) => wanted.has(r.name.toLowerCase()));
+  const daily = combineSeries(repos.map((r) => r.viewSeries)).map((p) => ({ day: p.day, views: p.known ? p.count : null }));
+  return { days: WELL_DAYS, daily, repos: repos.map((r) => ({ name: r.name, views: r.views, clones: r.clones, downloads: r.downloadsGained })) };
 }
 
 // What a README needs. "home" is the repository Mimir runs in, as "owner/name".

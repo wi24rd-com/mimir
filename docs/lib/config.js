@@ -2,7 +2,9 @@
 // settings panel, so all three agree on what a valid file is.
 
 export const VISIBILITIES = ['public', 'encrypted', 'private'];
-export const BADGES = ['total_downloads', 'stars', 'repo_downloads'];
+// What can be published in the open. The first three are single figures with a badge each;
+// 'well' publishes what The Well is drawn from, for the front page.
+export const BADGES = ['total_downloads', 'stars', 'repo_downloads', 'well'];
 // The placeholder in the mimir.json that ships with Mimir. Setup refuses to run until it is replaced.
 export const EXAMPLE_REPO = 'your-account/your-repository';
 const REPO = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;

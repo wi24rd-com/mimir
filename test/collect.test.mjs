@@ -90,10 +90,18 @@ test('only the figures the owner listed are written, and dropped ones are remove
   assert.equal(JSON.parse(readFileSync(join(d, 'badges', 'downloads-a.json'), 'utf8')).message, '5');
   assert.deepEqual(JSON.parse(readFileSync(join(d, 'public.json'), 'utf8')).figures, [{ id: 'stars', value: 3 }, { id: 'repo_downloads', repo: 'o/a', value: 5 }]);
 
+  const withWell = validateConfig({ version: 1, visibility: 'encrypted', repos: ['o/a'], public_badges: ['well'] });
+  writeBadges(d, withWell, state, '2026-11-21');
+  const published = JSON.parse(readFileSync(join(d, 'public.json'), 'utf8'));
+  assert.deepEqual(published.figures, []);
+  assert.deepEqual(published.well.repos, [{ name: 'o/a', views: 9, clones: 2, downloads: 0 }]);
+  assert.equal(published.well.daily.at(-2).views, 9, 'the day before the collection');
+  assert.ok(!existsSync(join(d, 'badges', 'stars.json')), 'choosing the Well writes no badge');
+
   const none = validateConfig({ version: 1, visibility: 'encrypted', repos: ['o/a'] });
   writeBadges(d, none, state, '2026-11-23');
   assert.ok(!existsSync(join(d, 'badges', 'stars.json')));
-  assert.deepEqual(JSON.parse(readFileSync(join(d, 'public.json'), 'utf8')), { mimir: 1, day: '2026-11-23', figures: [] });
+  assert.deepEqual(JSON.parse(readFileSync(join(d, 'public.json'), 'utf8')), { mimir: 1, day: '2026-11-23', figures: [] }, 'and the Well is gone again');
   const text = readFileSync(join(d, 'public.json'), 'utf8');
   assert.ok(!/views|clones|referrer/.test(text), 'nothing but the chosen figures');
 });

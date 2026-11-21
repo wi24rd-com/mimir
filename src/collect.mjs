@@ -16,7 +16,7 @@ import { loadConfig } from './config.mjs';
 import { ghGet, ghGetAll } from './lib/github.mjs';
 import { emptyRepo, mergeDaily, mergeDownloads, setMeta, setSnapshot, totalDownloads, totalStars } from './lib/merge.mjs';
 import { openStore } from './lib/store.mjs';
-import { BADGE_COLOR, publicFigures } from '../docs/lib/public.js';
+import { BADGE_COLOR, publicFigures, publicWell } from '../docs/lib/public.js';
 
 const TRAFFIC = [
   ['views', '/traffic/views'],
@@ -100,7 +100,8 @@ export function writeBadges(dir, config, state, day = new Date().toISOString().s
     writeFileSync(join(folder, f.file), JSON.stringify({ schemaVersion: 1, label: f.label, message: String(f.value), color: BADGE_COLOR }) + '\n');
   }
   const list = figures.map(({ id, repo, value }) => (repo ? { id, repo, value } : { id, value }));
-  writeFileSync(join(dir, 'public.json'), JSON.stringify({ mimir: 1, day, figures: list }) + '\n');
+  const well = publicWell(config, state, new Date(`${day}T12:00:00Z`));
+  writeFileSync(join(dir, 'public.json'), JSON.stringify({ mimir: 1, day, figures: list, ...(well ? { well } : {}) }) + '\n');
 }
 
 async function main() {

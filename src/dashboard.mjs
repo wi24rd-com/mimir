@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { encryptJson } from './lib/crypto.mjs';
 import { readDataBranch, readPublished, repoSlug } from './lib/data.mjs';
-import { publicFigures } from '../docs/lib/public.js';
+import { publicFigures, publicWell } from '../docs/lib/public.js';
 import { demoState } from './lib/demo.mjs';
 
 // Only for "--demo --encrypted": it protects invented figures, nothing else.
@@ -61,12 +61,13 @@ function main() {
   const here = fileURLToPath(new URL('..', import.meta.url));
   // The demo has its own settings, so it never shows the names in your mimir.json.
   const getConfig = demo
-    ? () => ({ version: 1, visibility: process.argv.includes('--encrypted') ? 'encrypted' : 'public', repos: Object.keys(demoState().repos), public_badges: ['total_downloads', 'stars', 'repo_downloads'] })
+    ? () => ({ version: 1, visibility: process.argv.includes('--encrypted') ? 'encrypted' : 'public', repos: Object.keys(demoState().repos), public_badges: ['total_downloads', 'stars', 'repo_downloads', 'well'] })
     : () => JSON.parse(readFileSync(join(here, 'mimir.json'), 'utf8'));
   let getState;
   let getPublic;
   // In the demo every figure that can be published is, so the front page has something to show.
-  const demoPublic = (state) => () => ({ mimir: 1, day: new Date().toISOString().slice(0, 10), figures: publicFigures({ repos: Object.keys(state.repos), public_badges: ['total_downloads', 'stars', 'repo_downloads'] }, state).map(({ id, repo, value }) => (repo ? { id, repo, value } : { id, value })) });
+  const demoAll = (state) => ({ repos: Object.keys(state.repos), public_badges: ['total_downloads', 'stars', 'repo_downloads', 'well'] });
+  const demoPublic = (state) => () => ({ mimir: 1, day: new Date().toISOString().slice(0, 10), figures: publicFigures(demoAll(state), state).map(({ id, repo, value }) => (repo ? { id, repo, value } : { id, value })), well: publicWell(demoAll(state), state) });
   if (demo && process.argv.includes('--encrypted')) {
     const state = demoState();
     const envelope = encryptJson(state, DEMO_PASSPHRASE);
@@ -79,7 +80,8 @@ function main() {
     getPublic = demoPublic(state);
   } else {
     readDataBranch({ cwd: here });
-    getState = () => readDataBranch({ cwd: here, refresh: false }).body;
+    // Fetches from GitHub each time, so "Fetch again" in the page shows the newest collection.
+    getState = () => readDataBranch({ cwd: here }).body;
     // Nothing published yet is an empty list, not an error.
     getPublic = () => { try { return readPublished({ cwd: here }); } catch { return { mimir: 1, figures: [] }; } };
   }

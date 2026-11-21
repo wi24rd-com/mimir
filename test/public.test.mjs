@@ -39,3 +39,26 @@ test('the badge code points at the data branch and is safe to paste', () => {
   assert.ok(!/[<>"']/.test(code.image));
   assert.equal(pagesUrl('Octo-Cat/Mimir'), 'https://octo-cat.github.io/Mimir/');
 });
+
+test('the Well is published only when chosen, and holds nothing but what it is drawn from', async () => {
+  const { publicWell, WELL_DAYS } = await import('../docs/lib/public.js');
+  const { summarize } = await import('../docs/lib/summary.js');
+  assert.equal(publicWell(cfg(['total_downloads', 'stars', 'repo_downloads']), state), null);
+  const well = publicWell(cfg(['well']), state);
+  assert.deepEqual(Object.keys(well), ['days', 'daily', 'repos']);
+  assert.equal(well.days, WELL_DAYS);
+  assert.equal(well.daily.length, WELL_DAYS);
+  for (const p of well.daily) assert.deepEqual(Object.keys(p), ['day', 'views']);
+  for (const r of well.repos) assert.deepEqual(Object.keys(r), ['name', 'views', 'clones', 'downloads']);
+  const all = summarize(state, { days: WELL_DAYS });
+  assert.equal(well.daily.reduce((n, p) => n + (p.views ?? 0), 0), all.totals.views, 'the days add up to the total the dashboard shows');
+  assert.deepEqual(well.repos.map((r) => [r.name, r.views, r.clones, r.downloads]), all.repos.map((r) => [r.name, r.views, r.clones, r.downloadsGained]));
+  assert.ok(!/uniques|referr|path|stars/.test(JSON.stringify(well)), 'no visitors, referrers, pages or stars');
+});
+
+test('the published Well covers only the repositories in mimir.json', async () => {
+  const { publicWell } = await import('../docs/lib/public.js');
+  const one = validateConfig({ version: 1, visibility: 'encrypted', repos: [repos[0]], public_badges: ['well'] });
+  assert.deepEqual(publicWell(one, state).repos.map((r) => r.name), [repos[0]]);
+  assert.deepEqual(badgeList(one), [], 'the Well has no badge');
+});

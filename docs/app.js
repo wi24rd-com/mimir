@@ -321,11 +321,12 @@ function sourcesView(summary) {
 // It is one view among five: the table beside it holds the same numbers.
 const still = matchMedia('(prefers-reduced-motion: reduce)');
 
-function wellView(summary, all) {
+// pickable: false on the public front page, where there is one picture and nothing to filter.
+function wellView(summary, all, pickable = true) {
   const t = L();
   const C = { cx: 300, cy: 300 };
   const repos = all.repos;
-  const chosen = ui.repo === 'all' ? null : ui.repo;
+  const chosen = pickable && ui.repo !== 'all' ? ui.repo : null;
   const daily = combineSeries(summary.repos.map((r) => r.viewSeries));
   const steps = scaleSteps(Math.max(0, ...daily.map((p) => p.count)));
   const busiest = Math.max(0, ...repos.map((r) => r.views));
@@ -387,7 +388,7 @@ function wellView(summary, all) {
   repos.forEach((r, i) => {
     const p = points[i];
     const dim = chosen && chosen !== r.name;
-    const g = s('g', { class: `b-kilde${dim ? ' b-dim' : ''}`, tabindex: '0', role: 'button', 'aria-label': `${r.short}: ${t.num(r.views)} ${t.views.toLowerCase()}, ${t.num(r.clones)} ${t.clones.toLowerCase()}, +${t.num(r.downloadsGained)} ${t.downloads.toLowerCase()}` });
+    const g = s('g', { class: `b-kilde${dim ? ' b-dim' : ''}`, tabindex: '0', role: pickable ? 'button' : 'img', 'aria-label': `${r.short}: ${t.num(r.views)} ${t.views.toLowerCase()}, ${t.num(r.clones)} ${t.clones.toLowerCase()}, +${t.num(r.downloadsGained)} ${t.downloads.toLowerCase()}` });
     const rings = rippleCount(r.views, busiest);
     const reach = 26 + rings * 13;
     for (let k = 0; k < rings; k++) {
@@ -415,8 +416,10 @@ function wellView(summary, all) {
     g.addEventListener('pointerleave', hideTip);
     g.addEventListener('blur', hideTip);
     const open = () => pick(chosen === r.name ? 'all' : r.name);
-    g.addEventListener('click', open);
-    g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    if (pickable) {
+      g.addEventListener('click', open);
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    }
     svg.append(g);
   });
 
@@ -428,7 +431,7 @@ function wellView(summary, all) {
     h('p', {}, t.wellPulse), h('p', {}, t.wellRipples), h('p', {}, t.wellClones), h('p', {}, t.wellDrops),
     still.matches ? h('p', { class: 'muted' }, t.wellStill) : null);
   const table = Kit.tabel({
-    titelT: 'tableRepos', raekkeHandling: 'aabn', vedAabn: (tr, data) => { ui.repo = data; location.hash = 'traffic'; }, layout: 'auto',
+    titelT: 'tableRepos', raekkeHandling: pickable ? 'aabn' : 'ingen', vedAabn: (tr, data) => { ui.repo = data; location.hash = 'traffic'; }, layout: 'auto',
     kolonner: [{ t: 'repository', hoved: true }, { t: 'views', tal: true }, { t: 'clones', tal: true }, { t: 'inPeriod', tal: true }],
     raekker: repos.map((r) => ({ celler: [r.short, t.num(r.views), t.num(r.clones), `+${t.num(r.downloadsGained)}`], data: r.name })),
   });
@@ -541,13 +544,32 @@ function unlockView(message, kind = 'field') {
     h('p', { class: 'hj', 'data-t': 'orPassphrase' }), field, button, drop);
 }
 
+// The published Well, checked field by field because public.json is outside data,
+// and shaped like the summaries the drawing takes. Null when there is none.
+function publishedWell() {
+  const w = ui.public?.well;
+  const count = (v) => Number.isFinite(v) && v >= 0;
+  if (!w || !Array.isArray(w.daily) || !Array.isArray(w.repos) || w.daily.length > 31 || w.repos.length > 100) return null;
+  const daily = w.daily.filter((p) => p && /^\d{4}-\d{2}-\d{2}$/.test(p.day) && (p.views === null || count(p.views)));
+  const repos = w.repos.filter((r) => r && typeof r.name === 'string' && count(r.views) && count(r.clones) && count(r.downloads));
+  if (!daily.length || !repos.length || daily.length !== w.daily.length || repos.length !== w.repos.length) return null;
+  const list = repos.map((r) => ({ name: r.name, short: r.name.split('/').pop(), views: r.views, clones: r.clones, downloadsGained: r.downloads, viewSeries: [] }));
+  list[0].viewSeries = daily.map((p) => ({ day: p.day, count: p.views ?? 0, uniques: null, known: p.views !== null }));
+  const summary = { repos: list, totals: { views: list.reduce((n, r) => n + r.views, 0) } };
+  return { summary, days: daily.length };
+}
+
 // What a visitor meets on GitHub Pages when the figures are encrypted: the
 // few figures the owner chose to publish, and the way in for the owner.
 function frontView() {
   const t = L();
   const known = { total_downloads: () => t.badgeDownloads, stars: () => t.badgeStars, repo_downloads: (f) => t.figRepoDownloads(String(f.repo ?? '').split('/').pop()) };
   const figures = (Array.isArray(ui.public?.figures) ? ui.public.figures : []).filter((f) => f && known[f.id] && Number.isFinite(f.value));
-  const nodes = [h('h1', { 'data-t': 'frontTitle' }), h('p', { 'data-t': figures.length ? 'frontBody' : 'frontBodyNone' })];
+  const well = publishedWell();
+  const nodes = [h('h1', { 'data-t': 'frontTitle' }), h('p', { 'data-t': figures.length || well ? 'frontBody' : 'frontBodyNone' })];
+  // The way in comes first, so the owner does not have to scroll past the picture.
+  nodes.push(Kit.knap({ t: 'frontOpen', variant: 'primary', ikon: 'laas', ved: () => { ui.front = false; draw(); } }));
+  if (well) nodes.push(h('p', { class: 'hj' }, t.frontWell(well.days)), ...wellView(well.summary, well.summary, false).nodes);
   if (figures.length) {
     const table = Kit.tabel({
       titelT: 'frontFigures', raekkeHandling: 'ingen', layout: 'auto',
@@ -555,10 +577,9 @@ function frontView() {
       raekker: figures.map((f) => ({ celler: [known[f.id](f), t.num(f.value)] })),
     });
     nodes.push(Kit.tabelRul(table, { ariaT: 'tableScroll' }).rod);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(ui.public.day ?? '')) nodes.push(h('p', { class: 'hj' }, t.frontAsOf(shortDay(ui.public.day))));
   }
-  nodes.push(Kit.knap({ t: 'frontOpen', variant: 'primary', ikon: 'laas', ved: () => { ui.front = false; draw(); } }));
-  return h('div', { class: 'mimir-laas mimir-forside' }, nodes);
+  if ((figures.length || well) && /^\d{4}-\d{2}-\d{2}$/.test(ui.public.day ?? '')) nodes.push(h('p', { class: 'hj' }, t.frontAsOf(shortDay(ui.public.day))));
+  return h('div', { class: `mimir-laas mimir-forside${well ? ' bred' : ''}` }, nodes);
 }
 
 function footer(all) {
@@ -643,7 +664,8 @@ function openSettings() {
   const repos = h('textarea', { id: 'mimir-repos', class: 'mono', spellcheck: false, value: current.repos.join('\n') });
   const reposField = h('div', { class: 'felt' }, h('label', { class: 'label', for: 'mimir-repos', 'data-t': 'trackedRepos' }), repos, h('span', { class: 'hj', 'data-t': 'trackedReposHelp' }));
   const labels = { encrypted: 'visEncrypted', public: 'visPublic', private: 'visPrivate' };
-  const badgeLabels = { total_downloads: 'badgeDownloads', stars: 'badgeStars', repo_downloads: 'badgeRepoDownloads' };
+  const badgeLabels = { total_downloads: 'badgeDownloads', stars: 'badgeStars', repo_downloads: 'badgeRepoDownloads', well: 'badgeWell' };
+  const warnWell = h('div', {});
   const codes = h('div', { class: 'mimir-koder' });
   const out = h('pre', { tabindex: '0' });
   const warn = h('div', {});
@@ -653,6 +675,9 @@ function openSettings() {
   const badges = BADGES.map((b) => ({ id: b, box: Kit.afkrydsning({ t: badgeLabels[b], valgt: (current.public_badges ?? []).includes(b), vedSkift: () => update() }) }));
   function update() {
     const next = { version: 1, visibility: vis.valgt, repos: repos.value.split('\n').map((line) => line.trim()).filter(Boolean), public_badges: badges.filter((b) => b.box.valgt).map((b) => b.id) };
+    // Publishing The Well opens traffic figures that are otherwise for the owner only.
+    const addsWell = next.public_badges.includes('well') && !(current.public_badges ?? []).includes('well') && next.visibility === 'encrypted';
+    warnWell.replaceChildren(...(addsWell ? [Kit.banner({ variant: 'warn', tekst: t.wellPublicWarn })] : []));
     const wasOpen = current.visibility !== 'encrypted';
     const isOpen = next.visibility !== 'encrypted';
     warn.replaceChildren(...(wasOpen === isOpen ? [] : [Kit.banner({ variant: 'warn', tekst: `${isOpen ? t.visWarnOpen : t.visWarnEncrypt} ${t.visNeedsFlag}` })]));
@@ -677,7 +702,7 @@ function openSettings() {
   }
   repos.addEventListener('input', update);
   const link = ui.source.repository ? h('a', { href: `https://github.com/${ui.source.repository}/edit/${ui.source.branch}/mimir.json`, target: '_blank', rel: 'noopener noreferrer', 'data-t': 'openOnGitHub' }) : null;
-  const body = h('div', { class: 'mimir-indst' }, reposField, vis.rod, h('div', {}, h('span', { class: 'label', 'data-t': 'publicTotals' }), badges.map((b) => b.box.rod)), warn, h('div', {}, h('span', { class: 'label', 'data-t': 'newFile' }), out), link, codes);
+  const body = h('div', { class: 'mimir-indst' }, reposField, vis.rod, h('div', {}, h('span', { class: 'label', 'data-t': 'publicTotals' }), badges.map((b) => b.box.rod)), warnWell, warn, h('div', {}, h('span', { class: 'label', 'data-t': 'newFile' }), out), link, codes);
   dialog = Kit.dialog({
     t: 'settings', p: { t: 'settingsIntro' }, indhold: body, luk: { ariaT: 'close' },
     knapper: [

@@ -12,10 +12,11 @@ how often a release file was downloaded. Mimir collects both twice a day with a
 GitHub Actions workflow and stores them in a `data` branch of your own copy of
 this repository. Nothing is sent to Wi24rd or to any third party.
 
-**Status: in development. Not released.** Collection, setup, the terminal view
-and the dashboard exist and are tested. Publishing the dashboard on GitHub Pages,
-the phone setup and the badges are built but have not been run for real. See [`asewave/`](asewave/) for what has been
-verified and what has not.
+**Status: first version, in daily use by its author.** Collection, setup, the
+dashboard, GitHub Pages and the phone layout have been run for real. Not yet run
+for real: the badges, the published Well, and creating a copy with "Use this
+template". No release has been tagged. See [`asewave/`](asewave/) for what has
+been verified and what has not.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screens/overview-dark.png">
@@ -158,8 +159,12 @@ on `http://localhost:<port>/`, where they work.
 ## Badges and published figures
 
 `public_badges` in `mimir.json` lists what is published in the open, in every
-mode: `total_downloads`, `stars` and `repo_downloads` (one figure per
-repository). Views and clones cannot be published this way. Each collection
+mode: `total_downloads`, `stars`, `repo_downloads` (one figure per repository)
+and `well`. The first three are single figures with a badge each. `well` puts
+The Well on the front page and publishes what it is drawn from: views per day,
+and views, clones and downloads per repository, for the last 14 days. Those are
+figures GitHub shows to the owner only, and once published they stay in the
+history of the `data` branch. Visitors, referrers and pages are never published. Each collection
 writes one small JSON file per figure to `badges/` on the `data` branch, removes
 the files for figures you no longer list, and writes `public.json` for the front
 page.
