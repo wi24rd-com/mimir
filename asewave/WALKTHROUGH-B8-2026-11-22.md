@@ -68,6 +68,27 @@ commit: "Follow my repositories", 1 fil ændret (mimir.json)
 - **Windows:** `install.sh` kræver en POSIX-shell (Git Bash eller WSL). De to linjer med `gh` virker uden. Ingen af delene er prøvet på Windows.
 - **Pages kan tage et par minutter**, før adressen svarer, og setup venter ikke på det.
 
+## Tillæg: fund fra Jans første prøve
+
+Jan kørte `sh install.sh` for alvor samme dag og kaldte kopien `mimir-proeve`. Det virkede mod det rigtige GitHub: `gh repo create --template` oprettede og klonede kopien, filerne var der, setup startede, og listen viste hans 18 repositories med de private mærket. Han svarede nej til at gemme, så intet blev committet, og ingen app blev oprettet.
+
+| Fund | Rettelse |
+|---|---|
+| Spørgsmål 3 sagde ikke, om tallene skulle skrives med mellemrum, komma eller som `1234` | Teksten siger nu "Numbers with spaces between them (1 2 4)". Med færre end ti valg læses cifre skrevet sammen ét ad gangen, så `1234` også virker. Et ulæseligt svar får et eksempel med i beskeden |
+| Advarslen om private navne i en offentlig `mimir.json` stod som én lang linje, og eneste vej videre var ja eller stop | Ét navn pr. linje, og tre valg: lad de private ude (standard), følg dem alligevel, eller stop |
+| Efter et stop stod terminalen i mappen over kopien, og intet sagde, hvor setup skulle startes igen | Stop-beskeden slutter med kommandoen, mappen medregnet |
+
+```
+$ node --test     (asewave/evidence/82-npm-test-b8-tillaeg.txt)
+# tests 145
+# pass 145
+# fail 0
+```
+
+`81` er setup kørt igen i en skrabet kopi med Jans svar ("all", Enter, Enter, "1234", "n"): det private navn er udeladt, `1234` er læst som fire valg, og efter nejet er `mimir.json` urørt.
+
+Stadig uprøvet for alvor efter første prøve: at gemme og pushe `mimir.json`, appen, adgangsfrasen, Pages, første indsamling og badges.
+
 ---
 
 **STOP. Ingen `git commit` eller `push` er udført. Jan kører blokkene.**

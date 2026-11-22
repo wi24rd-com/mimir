@@ -10,13 +10,15 @@ import { BADGES, EXAMPLE_REPO, validateConfig } from './config.mjs';
 export const needsGuide = (parsed) => !Array.isArray(parsed?.repos) || parsed.repos.length === 0 || parsed.repos.includes(EXAMPLE_REPO);
 
 // "1 3 5", "1,3", "2-4" or "all" as a sorted list of positions (0-based).
+// With fewer than ten choices, digits written together ("124") are read one by one.
 // Null when the answer cannot be read that way. An empty answer is an empty list.
 export function parsePick(text, count) {
   const answer = String(text ?? '').trim().toLowerCase();
   if (answer === '') return [];
   if (answer === 'all') return Array.from({ length: count }, (_, i) => i);
   const picked = new Set();
-  for (const part of answer.split(/[\s,]+/).filter(Boolean)) {
+  const together = (part) => count < 10 && /^\d{2,9}$/.test(part);
+  for (const part of answer.split(/[\s,]+/).filter(Boolean).flatMap((p) => (together(p) ? [...p] : [p]))) {
     const m = /^(\d{1,4})(?:-(\d{1,4}))?$/.exec(part);
     if (!m) return null;
     const from = Number(m[1]);
@@ -58,7 +60,7 @@ async function until(ask, question, read, say) {
   for (let tries = 0; tries < 5; tries++) {
     const value = read(await ask(question));
     if (value !== null) return value;
-    say('  That answer could not be read. Try again.');
+    say('  That answer could not be read. Write the numbers with spaces between them, for example: 1 3');
   }
   throw new Error('no usable answer after five tries');
 }
@@ -76,11 +78,19 @@ export async function guide({ repo, ask, gh, say }) {
   say(`\n  ${repo.nameWithOwner} itself is left out. You can change the list later in mimir.json.`);
   const picked = await until(ask, '\nNumbers with spaces between them (1 3 5), a span (2-4), or "all": ', (a) => { const p = parsePick(a, all.length); return p && p.length ? p : null; }, say);
   if (picked.length > 100) throw new Error('Mimir follows at most 100 repositories.');
-  const repos = picked.map((i) => all[i].name);
+  let repos = picked.map((i) => all[i].name);
   const hidden = picked.filter((i) => all[i].private).map((i) => all[i].name);
   if (hidden.length && !repo.isPrivate) {
-    say(`\n  ${repo.nameWithOwner} is public, and mimir.json in it lists the repositories by name.\n  The names of these private repositories would be visible to everyone: ${hidden.join(', ')}`);
-    if (!yes(await ask('  Follow them anyway? [y/N] '), false)) throw new Error('Stopped. Nothing was changed. Run setup again and leave the private repositories out, or make this repository private.');
+    say(`\n  ${repo.nameWithOwner} is public, and mimir.json in it lists the repositories by name.\n  The names of these private repositories would be visible to everyone:\n`);
+    for (const name of hidden) say(`      ${name}`);
+    say('\n  1  Leave the private ones out (recommended)\n  2  Follow them anyway, with their names in the open\n  3  Stop');
+    const choice = await until(ask, '\nNumber [1]: ', (a) => { const t = String(a ?? '').trim(); return t === '' ? 1 : [1, 2, 3].includes(Number(t)) ? Number(t) : null; }, say);
+    if (choice === 3) throw new Error('Stopped. Nothing was changed.');
+    if (choice === 1) {
+      repos = repos.filter((name) => !hidden.includes(name));
+      if (!repos.length) throw new Error('Stopped: every repository you picked is private. Nothing was changed. Pick public ones, or make this repository private.');
+      say(`\n  Following ${repos.length}: ${repos.join(', ')}`);
+    }
   }
 
   const modes = repo.isPrivate ? ['private', 'encrypted'] : ['encrypted', 'public'];
@@ -94,7 +104,7 @@ export async function guide({ repo, ask, gh, say }) {
   } else {
     say('\nQuestion 3 of 3: should any figures be shown in the open? Nothing is, unless you choose it.\n');
     BADGES.forEach((b, i) => say(`  ${i + 1}  ${PUBLISH[b]}`));
-    const chosen = await until(ask, '\nNumbers, or just Enter for none: ', (a) => parsePick(a, BADGES.length), say);
+    const chosen = await until(ask, '\nNumbers with spaces between them (1 2 4), or just Enter for none: ', (a) => parsePick(a, BADGES.length), say);
     badges = chosen.map((i) => BADGES[i]);
   }
 

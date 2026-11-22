@@ -32,7 +32,14 @@ test('pick: numbers, commas, spans and "all"; anything else is not accepted', ()
   assert.deepEqual(parsePick('2-4 1', 5), [0, 1, 2, 3]);
   assert.deepEqual(parsePick('ALL', 3), [0, 1, 2]);
   assert.deepEqual(parsePick('', 3), []);
-  for (const bad of ['0', '6', '4-2', 'one', '1;rm', '-1', '1-', '1.5', '99999']) assert.equal(parsePick(bad, 5), null, bad);
+  for (const bad of ['0', '6', '4-2', 'one', '1;rm', '-1', '1-', '1.5', '99999', '106']) assert.equal(parsePick(bad, 5), null, bad);
+  // Fewer than ten choices: digits written together are read one by one.
+  assert.deepEqual(parsePick('1234', 4), [0, 1, 2, 3]);
+  assert.deepEqual(parsePick('41 2', 4), [0, 1, 3]);
+  assert.equal(parsePick('15', 4), null);
+  // Ten or more: "12" is number twelve, and "1234" is not an answer.
+  assert.deepEqual(parsePick('12', 18), [11]);
+  assert.equal(parsePick('1234', 18), null);
 });
 
 test('a fresh copy needs the questions; a filled-in mimir.json does not', () => {
@@ -69,7 +76,7 @@ test('guide: the defaults give an encrypted setup that publishes nothing', async
 });
 
 test('guide: public mode and published figures are chosen by number', async () => {
-  const w = world(['all', 'y', '2', '1 2 4']);
+  const w = world(['all', '2', '2', '124']);
   const { config } = await guide({ repo: PUBLIC, ask: w.ask, gh: w.gh, say: w.say });
   assert.equal(config.visibility, 'public');
   assert.deepEqual(config.public_badges, ['total_downloads', 'stars', 'well']);
@@ -77,11 +84,21 @@ test('guide: public mode and published figures are chosen by number', async () =
 });
 
 test('guide: a private repository name is not put in a public mimir.json without a clear yes', async () => {
-  const no = world(['2', '']);
-  await assert.rejects(guide({ repo: PUBLIC, ask: no.ask, gh: no.gh, say: no.say }), /Nothing was changed/);
-  assert.match(no.said.join('\n'), /visible to everyone: octo\/secret-plans/);
-  const yes = world(['2', 'y', '', '']);
+  // Enter takes the recommended way: the private ones are left out.
+  const out = world(['all', '', '', '']);
+  assert.deepEqual((await guide({ repo: PUBLIC, ask: out.ask, gh: out.gh, say: out.say })).config.repos, ['octo/alpha', 'octo/zeta']);
+  const shown = out.said.join('\n');
+  assert.match(shown, /visible to everyone:/);
+  assert.match(shown, /^ {6}octo\/secret-plans$/m);
+  assert.match(shown, /Following 2: octo\/alpha, octo\/zeta/);
+  // Following them takes the number 2, on purpose.
+  const yes = world(['2', '2', '', '']);
   assert.deepEqual((await guide({ repo: PUBLIC, ask: yes.ask, gh: yes.gh, say: yes.say })).config.repos, ['octo/secret-plans']);
+  const stop = world(['all', '3']);
+  await assert.rejects(guide({ repo: PUBLIC, ask: stop.ask, gh: stop.gh, say: stop.say }), /Nothing was changed/);
+  // Only private ones picked, and left out: there is nothing to follow.
+  const none = world(['2', '1']);
+  await assert.rejects(guide({ repo: PUBLIC, ask: none.ask, gh: none.gh, say: none.say }), /every repository you picked is private/);
 });
 
 test('guide: a private Mimir repository offers private and encrypted, and skips publishing', async () => {

@@ -220,5 +220,6 @@ async function main() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().catch((e) => { console.error(`\nSetup stopped: ${e.message}`); process.exit(1); });
+  // Setup can be run again, and it says where: after install.sh the terminal is still in the folder above.
+  main().catch((e) => { console.error(`\nSetup stopped: ${e.message}\n\nTo start it again:\n  cd "${process.cwd()}" && node src/setup.mjs`); process.exit(1); });
 }
