@@ -9,7 +9,8 @@
     "package.json",
     "LICENSE",
     "NOTICE",
-    "SECURITY.md"
+    "SECURITY.md",
+    "install.sh"
   ],
   "keep": [
     "docs/CNAME"

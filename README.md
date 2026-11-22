@@ -82,13 +82,47 @@ permission. Each run asks for a token that expires after an hour.
 
 ## Setup
 
-Requires [GitHub CLI](https://cli.github.com) and Node.js 20 or later.
+Requires git, the [GitHub CLI](https://cli.github.com) (signed in with
+`gh auth login`) and Node.js 20 or later. Setup asks its questions in the
+terminal and does the rest. There are three ways to start it; they end in the
+same place.
 
-1. Click **Use this template** at the top of this page and create your own
-   repository from it. Make it public for the `encrypted` and `public` modes,
-   private for `private`. Then clone it.
-2. Edit `mimir.json`: your repositories and the mode. Commit and push.
-3. Run `node src/setup.mjs` in the clone.
+**With the installer.** It creates your copy, clones it and starts setup:
+
+```
+curl -fsSLO https://raw.githubusercontent.com/wi24rd-com/mimir/main/install.sh
+less install.sh     # read it first; it is short
+sh install.sh
+```
+
+**With the GitHub CLI**, in two lines:
+
+```
+gh repo create my-mimir --template wi24rd-com/mimir --public --clone
+cd my-mimir && node src/setup.mjs
+```
+
+**By hand.** Click **Use this template** at the top of this page, create your
+repository, clone it, and run `node src/setup.mjs` in the clone.
+
+Make the repository public for the dashboard on GitHub Pages and for badges;
+your figures can still be encrypted. A private repository keeps everything to
+you, and the dashboard then runs on your computer only.
+
+Setup then takes you through it:
+
+1. Which repositories to follow, picked from a list of your own.
+2. How to store the figures: encrypted, public or private.
+3. Whether any figures are published. None are unless you choose them.
+4. It shows the `mimir.json` it made, and saves, commits and pushes it when you say yes.
+5. It creates your GitHub App and stores its key. In `encrypted` mode it makes
+   your passphrase and shows it once.
+6. It switches GitHub Pages on and gives you the address of your dashboard.
+7. It starts the first collection.
+
+Setup can be run again. What is already done is skipped, so it also finishes a
+setup that was interrupted. To change the settings later, edit `mimir.json` or
+use the settings dialog in the dashboard.
 
 Use the template, not a fork. Each copy keeps its own figures in its own `data`
 branch, and nothing is collected in a copy until setup has run there. A copy
@@ -111,7 +145,7 @@ node src/update.mjs v1.2.0     # or a version you name
 ```
 
 It fetches the version from this repository and replaces Mimir's own files:
-`src/`, `docs/`, `test/`, `tools/` and the two workflows. Your `mimir.json`,
+`src/`, `docs/`, `test/`, `tools/`, `install.sh` and the two workflows. Your `mimir.json`,
 your README, your figures in the `data` branch and a custom domain file
 (`docs/CNAME`) are not touched. Nothing is committed. You look at the change
 (`git diff --cached --stat`), run `npm test`, and commit and push it yourself;

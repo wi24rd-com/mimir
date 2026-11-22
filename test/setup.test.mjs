@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { appName, buildManifest, startFlow } from '../src/setup.mjs';
+import { appName, buildManifest, pages, startFlow } from '../src/setup.mjs';
 
 function get(url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -102,4 +102,37 @@ test('each copy gets an app name of its own, within GitHub\'s 34 characters', ()
   assert.match(long, /^[a-z0-9-]+$/);
   assert.notEqual(long, appName('a-very-long-organisation-name', 'my-mimir-copy-three'));
   assert.equal(appName('O', 'My.Repo_1'), 'mimir-o-my-repo-1');
+});
+
+// A stand-in for the GitHub CLI that answers the Pages questions and records what was asked.
+function pagesWorld({ already = false, create = true } = {}) {
+  const calls = [];
+  const said = [];
+  const gh = (args) => {
+    calls.push(args);
+    if (args.includes('POST')) return create ? { ok: true, out: 'https://o.github.io/mimir/' } : { ok: false, out: '' };
+    return already ? { ok: true, out: 'https://o.github.io/mimir/' } : { ok: false, out: '' };
+  };
+  return { gh, calls, said, say: (line) => said.push(line) };
+}
+
+test('pages: switched on for main and /docs when the owner says yes, and not asked for when it is on', async () => {
+  const w = pagesWorld();
+  assert.equal(await pages({ slug: 'o/mimir', gh: w.gh, ask: async () => '', say: w.say }), 'https://o.github.io/mimir/');
+  assert.deepEqual(w.calls[1].slice(0, 8), ['api', '--method', 'POST', 'repos/o/mimir/pages', '-f', 'source[branch]=main', '-f', 'source[path]=/docs']);
+  const on = pagesWorld({ already: true });
+  let asked = 0;
+  assert.equal(await pages({ slug: 'o/mimir', gh: on.gh, ask: async () => { asked++; return ''; }, say: on.say }), 'https://o.github.io/mimir/');
+  assert.equal(asked, 0);
+  assert.equal(on.calls.length, 1);
+});
+
+test('pages: left off when the owner says no, and the manual way is given when GitHub refuses', async () => {
+  const no = pagesWorld();
+  assert.equal(await pages({ slug: 'o/mimir', gh: no.gh, ask: async () => 'n', say: no.say }), null);
+  assert.equal(no.calls.length, 1);
+  assert.match(no.said.join(' '), /Settings, Pages/);
+  const refused = pagesWorld({ create: false });
+  assert.equal(await pages({ slug: 'o/mimir', gh: refused.gh, ask: async () => 'y', say: refused.say }), null);
+  assert.match(refused.said.join(' '), /Deploy from a branch/);
 });

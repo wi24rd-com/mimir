@@ -25,6 +25,9 @@ no promised response time.
 - The dashboard fetches from GitHub only. When nothing has been collected for
   36 hours it asks `api.github.com` once whether the collecting workflow is
   switched on. That request carries the repository's name and no figures.
+- `install.sh` installs nothing on your computer. It runs `gh repo create` from
+  this template, clones the copy and starts `src/setup.mjs`. Download it and
+  read it before you run it, rather than piping it into a shell.
 - `node src/update.mjs` takes Mimir's files from a tagged version of
   `wi24rd-com/mimir`. It replaces only the paths that version lists, refuses
   paths outside Mimir's own files, and commits nothing.

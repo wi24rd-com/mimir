@@ -2,10 +2,12 @@
 //
 //   node src/setup.mjs
 //
-// It registers a GitHub App that belongs to you (read-only "Administration"
-// access, nothing else), stores its key as a repository secret, and starts the
-// first collection. You confirm twice in the browser: once to create the app,
-// once to choose the repositories it may read.
+// It asks which repositories to follow and how to store the figures, and
+// writes mimir.json for you. Then it registers a GitHub App that belongs to you
+// (read-only "Administration" access, nothing else), stores its key as a
+// repository secret, switches GitHub Pages on, and starts the first collection.
+// You confirm twice in the browser: once to create the app, once to choose the
+// repositories it may read. It can be run again: what is done is skipped.
 //
 // Nothing is sent anywhere except github.com. The private key goes straight
 // from GitHub into your repository's secrets; it is never written to disk or
@@ -15,8 +17,11 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { EXAMPLE_REPO, loadConfig } from './config.mjs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { loadConfig } from './config.mjs';
+import { guide, needsGuide, saveConfig } from './guide.mjs';
 import { generatePassphrase } from './lib/crypto.mjs';
+import { pagesUrl } from '../docs/lib/public.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -113,11 +118,29 @@ function openBrowser(url) {
   spawnSync(cmd[0], cmd[1], { stdio: 'ignore' });
 }
 
+function run(cmd, args) {
+  // The terminal stays connected, so git can ask for a passphrase or a sign-in when it needs one.
+  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
+  return { ok: !r.error && r.status === 0, out: (r.stdout ?? '').trim() };
+}
+
+// Switches GitHub Pages on for the docs/ folder, unless it already is. Returns
+// the address of the dashboard, or null when Pages is not on. "gh" and "ask" are handed in for the tests.
+export async function pages({ slug, gh: ghRun, ask, say }) {
+  const have = ghRun(['api', `repos/${slug}/pages`, '--jq', '.html_url'], { quiet: true });
+  if (have.ok && /^https:\/\//.test(have.out)) { say(`GitHub Pages is on: ${have.out}`); return have.out; }
+  const answer = String(await ask('Switch on GitHub Pages, so the dashboard gets an address of its own? [Y/n] ')).trim().toLowerCase();
+  if (answer !== '' && answer !== 'y' && answer !== 'yes') { say('  Left off. You can switch it on later under Settings, Pages: branch "main", folder "/docs".'); return null; }
+  const made = ghRun(['api', '--method', 'POST', `repos/${slug}/pages`, '-f', 'source[branch]=main', '-f', 'source[path]=/docs', '--jq', '.html_url'], { quiet: true });
+  if (!made.ok) { say('  Could not switch it on from here. Do it under Settings, Pages: "Deploy from a branch", branch "main", folder "/docs".'); return null; }
+  const url = /^https:\/\//.test(made.out) ? made.out : pagesUrl(slug);
+  say(`  GitHub Pages is on. The address works in a minute or two: ${url}`);
+  return url;
+}
+
 async function main() {
   const force = process.argv.includes('--force');
   const say = console.log;
-  const config = loadConfig();
-  if (config.repos.includes(EXAMPLE_REPO)) throw new Error(`mimir.json still holds the example "${EXAMPLE_REPO}". Replace it with your own repositories, save, and run setup again.`);
 
   if (!gh(['auth', 'status'], { quiet: true }).ok) throw new Error('Not signed in. Run "gh auth login" first.');
   const view = gh(['repo', 'view', '--json', 'nameWithOwner,url,visibility'], { quiet: true });
@@ -125,12 +148,22 @@ async function main() {
   const repo = JSON.parse(view.out);
   const isPrivate = repo.visibility !== 'PUBLIC';
 
-  say(`\nWi24rd Mimir setup\n  Data repository : ${repo.nameWithOwner} (${isPrivate ? 'private' : 'public'})\n  Mode            : ${config.visibility}\n  Tracking        : ${config.repos.join(', ')}\n`);
-  if (config.visibility === 'private' && !isPrivate) throw new Error('mimir.json says "private", but this repository is public. Make the repository private, or choose "encrypted" or "public".');
-  if (config.visibility === 'public') say('  Note: in "public" mode anyone can read the collected figures.\n');
-
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (question) => rl.question(question);
   try {
+    say(`\nWi24rd Mimir setup\n  Data repository : ${repo.nameWithOwner} (${isPrivate ? 'private' : 'public'})\n`);
+    // A fresh copy still holds the example: ask, and write mimir.json.
+    let shipped = null;
+    try { shipped = JSON.parse(readFileSync('mimir.json', 'utf8')); } catch { /* missing or broken: loadConfig says which, below */ }
+    if (shipped && needsGuide(shipped)) {
+      const made = await guide({ repo: { nameWithOwner: repo.nameWithOwner, isPrivate }, ask, gh, say });
+      await saveConfig({ text: made.text, ask, say, git: (args) => run('git', args), sh: (args) => run('sh', args), write: (text) => writeFileSync('mimir.json', text), hasFixedTime: existsSync('tools/fast-tid.sh') });
+    }
+    const config = loadConfig();
+    say(`  Mode            : ${config.visibility}\n  Following       : ${config.repos.join(', ')}\n`);
+    if (config.visibility === 'private' && !isPrivate) throw new Error('mimir.json says "private", but this repository is public. Make the repository private, or choose "encrypted" or "public".');
+    if (config.visibility === 'public') say('  Note: in "public" mode anyone can read the collected figures.\n');
+
     const existing = gh(['variable', 'get', 'MIMIR_APP_CLIENT_ID'], { quiet: true });
     let slug = gh(['variable', 'get', 'MIMIR_APP_SLUG'], { quiet: true }).out;
     if (existing.ok && existing.out && !force) {
@@ -169,8 +202,18 @@ async function main() {
       await rl.question('Press Enter when the app is installed. ');
     }
 
-    if (gh(['workflow', 'run', 'collect.yml']).ok) say(`\nFirst collection started. Follow it with: gh run watch\n`);
-    else say('\nCould not start the first collection. Start it from the Actions tab ("Collect" > "Run workflow").\n');
+    // The dashboard on GitHub Pages needs a public repository.
+    say('');
+    const address = isPrivate ? null : await pages({ slug: repo.nameWithOwner, gh, ask, say });
+
+    if (gh(['workflow', 'run', 'collect.yml']).ok) say(`\nFirst collection started. Follow it with: gh run watch`);
+    else say('\nCould not start the first collection. Start it from the Actions tab ("Collect" > "Run workflow").');
+
+    say('\nDone. From here:');
+    say('  node src/show.mjs          your figures in the terminal');
+    say('  node src/dashboard.mjs     the dashboard on this computer');
+    if (address) say(`  ${address}   the dashboard on GitHub Pages${config.visibility === 'encrypted' ? ', opened with your passphrase' : ''}`);
+    say('  Figures appear after the first collection, which takes about a minute. Collection then runs twice a day.\n');
   } finally {
     rl.close();
   }

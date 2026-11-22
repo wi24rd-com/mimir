@@ -24,7 +24,7 @@ for (const [name, bad, msg] of [
   test(`rejected: ${name}`, () => assert.throws(() => validateConfig(bad), msg));
 }
 
-test('the mimir.json that ships with Mimir is the example, and setup refuses it', async (t) => {
+test('the mimir.json that ships with Mimir is the example, and setup asks instead of using it', async (t) => {
   const { readFileSync } = await import('node:fs');
   const { EXAMPLE_REPO } = await import('../src/config.mjs');
   const shipped = validateConfig(JSON.parse(readFileSync(new URL('../mimir.json', import.meta.url), 'utf8')));
@@ -33,5 +33,7 @@ test('the mimir.json that ships with Mimir is the example, and setup refuses it'
   assert.deepEqual(shipped.repos, [EXAMPLE_REPO]);
   assert.equal(shipped.visibility, 'encrypted');
   assert.deepEqual(shipped.public_badges, []);
-  assert.match(readFileSync(new URL('../src/setup.mjs', import.meta.url), 'utf8'), /config\.repos\.includes\(EXAMPLE_REPO\)/);
+  const { needsGuide } = await import('../src/guide.mjs');
+  assert.equal(needsGuide(JSON.parse(readFileSync(new URL('../mimir.json', import.meta.url), 'utf8'))), true);
+  assert.match(readFileSync(new URL('../src/setup.mjs', import.meta.url), 'utf8'), /needsGuide\(shipped\)/);
 });
