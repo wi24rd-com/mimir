@@ -1,15 +1,7 @@
 // Pure functions that fold one day's API answers into the long-term state.
 // Schema 1. Nothing here touches the network or the disk.
 
-export const SCHEMA = 1;
-
-export function emptyState() {
-  return { schema: SCHEMA, repos: {}, health: { last_run: null, runs: 0, last_errors: [] } };
-}
-
-export function emptyRepo() {
-  return { views: {}, clones: {}, referrers: {}, paths: {}, downloads: {}, meta: {}, last_success: {} };
-}
+export { SCHEMA, emptyRepo, emptyState } from '../../docs/lib/state.js';
 
 const day = (ts) => String(ts).slice(0, 10);
 const isDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d);

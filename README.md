@@ -23,7 +23,11 @@ been verified and what has not.
   <img src="assets/screens/overview-light.png" alt="The Mimir dashboard: a sentence with the totals for the last 14 days, and a table with views, clones, downloads and stars for three repositories" width="800">
 </picture>
 
-*Every picture on this page shows the demo with invented figures (`node src/dashboard.mjs --demo`).*
+*Every picture on this page shows the demo with invented figures.*
+
+**[Try the demo](https://wi24rd-com.github.io/mimir/?demo)** in your browser, or see
+[the page a visitor meets](https://wi24rd-com.github.io/mimir/?demo=front). The
+figures are invented and made in your browser; nothing is fetched.
 
 ## A look around
 
@@ -88,12 +92,36 @@ Requires [GitHub CLI](https://cli.github.com) and Node.js 20 or later.
 
 Use the template, not a fork. Each copy keeps its own figures in its own `data`
 branch, and nothing is collected in a copy until setup has run there. A copy
-does not follow this repository: to take a newer version, copy the files over
-your own and keep your `mimir.json`.
+does not follow this repository by itself; see [Updating](#updating).
 
 You confirm twice in the browser: once to create the app, once to choose the
 repositories it may read. The app's key goes straight into the repository's
-secrets. It is not written to disk and not shown on screen.
+secrets. It is not written to disk and not shown on screen. The app is named
+after your account and the repository (`mimir-<account>-<repository>`), so a
+second copy on the same account gets an app of its own.
+
+## Updating
+
+In your clone:
+
+```
+node src/update.mjs --check    # is there a newer version?
+node src/update.mjs            # take the newest version
+node src/update.mjs v1.2.0     # or a version you name
+```
+
+It fetches the version from this repository and replaces Mimir's own files:
+`src/`, `docs/`, `test/`, `tools/` and the two workflows. Your `mimir.json`,
+your README, your figures in the `data` branch and a custom domain file
+(`docs/CNAME`) are not touched. Nothing is committed. You look at the change
+(`git diff --cached --stat`), run `npm test`, and commit and push it yourself;
+`git reset --hard` takes it back. A new major version is refused until you ask
+for it with `--major`.
+
+Versions are tagged releases of this repository. From 1.0.0, a newer 1.x
+version reads the `mimir.json` and the `data` branch of an older one with
+nothing for you to do. A test (`test/format.test.mjs`) holds files written by
+0.1.0 to keep that promise.
 
 ## See your figures
 
@@ -116,14 +144,18 @@ a filter for one repository, and a fifth tab, The Well, that draws the same
 figures as one picture: a stone per day around the rim and a point per
 repository on the water. A settings dialog writes a
 new `mimir.json` for you to save on GitHub. The page itself cannot change your
-repository, and it loads nothing from other sites.
+repository. It fetches from GitHub only: your figures, and, when nothing has
+been collected for 36 hours, one question about whether the collecting workflow
+is still switched on. Add `?demo` to the address on GitHub Pages for the demo.
 
 It is built with [Wi24rd UI Kit 2](docs/kit/), the design system shared by the
 Wi24rd programs, copied unchanged into `docs/kit/`.
 
 ## On your phone
 
-Tried on GitHub Pages and in the browser on an iPhone. "Add to Home Screen" and Android have not been tried yet; see [`asewave/`](asewave/).
+Tried on GitHub Pages and in the browser on an iPhone, and in Chrome, Firefox
+and WebKit (the engine in Safari) at desktop and phone size. Not tried: Android,
+Safari itself, and "Add to Home Screen". See [`asewave/`](asewave/).
 
 When the repository is public and GitHub Pages serves the `docs/` folder, the
 dashboard has an address of its own. Turn it on under Settings, Pages: deploy
@@ -176,9 +208,20 @@ your README load the picture from there. The repository has to be public.
 
 ## Limits
 
-- GitHub may disable scheduled workflows in a public repository after 60 days
-  without activity. A disabled workflow cannot report its own stop. The
-  dashboard and the terminal view warn when nothing has been collected for 36 hours.
+- GitHub switches scheduled workflows off in a public repository after 60 days
+  without activity, and Mimir commits to the `data` branch only. A workflow
+  that is switched off cannot report it, so Mimir guards against it in three ways:
+  - A small job switches the Collect workflow on again at every run, which is
+    meant to keep GitHub from pausing it. This has not been proven over a full
+    60 days.
+  - After 45 days without a commit on the main branch, a collection opens one
+    issue, "Mimir: GitHub may pause collection soon", so GitHub notifies you
+    while there is time. It closes itself after the next commit.
+  - When nothing has been collected for 36 hours, the dashboard and the
+    terminal view ask GitHub whether the workflow was switched off, say so, and
+    point to "Enable workflow". GitHub keeps traffic for 14 days, so no figures
+    are lost when that is done within two weeks.
+- Not tried on Android, in Safari itself, or as a home-screen app.
 - A failed collection opens an issue in the repository. The next successful one closes it.
 - Commits on the `data` branch carry the day only, not the time. The list of
   runs under Actions still shows when each collection ran.
@@ -189,6 +232,8 @@ your README load the picture from there. The repository has to be public.
 ```
 npm test
 ```
+
+The same tests run on GitHub at every push to the main branch (`.github/workflows/test.yml`).
 
 No dependencies. Built with [ASEWAVE](https://asewave.org).
 

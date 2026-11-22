@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { buildManifest, startFlow } from '../src/setup.mjs';
+import { appName, buildManifest, startFlow } from '../src/setup.mjs';
 
 function get(url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -37,7 +37,7 @@ test('the start page posts the manifest to GitHub with a state value', async () 
   flow.close();
   assert.equal(page.status, 200);
   assert.match(page.body, /action="https:\/\/github\.com\/settings\/apps\/new\?state=[0-9a-f]{48}"/);
-  assert.match(page.body, /name="manifest" value="\{&#34;name&#34;:&#34;mimir-o&#34;/);
+  assert.match(page.body, /name="manifest" value="\{&#34;name&#34;:&#34;mimir-o-mimir&#34;/);
   assert.match(page.headers['content-security-policy'], /form-action https:\/\/github\.com/);
 });
 
@@ -92,4 +92,14 @@ test('a refusal from GitHub is reported and no app is returned', async () => {
   await rejected;
   flow.close();
   assert.equal(cb.status, 502);
+});
+
+test('each copy gets an app name of its own, within GitHub\'s 34 characters', () => {
+  assert.equal(buildManifest({ owner: 'wi24rd-com', repoUrl: 'https://github.com/wi24rd-com/mimir-wi24rd', port: 1 }).name, 'mimir-wi24rd-com-mimir-wi24rd');
+  assert.notEqual(appName('o', 'mimir'), appName('o', 'mimir-two'));
+  const long = appName('a-very-long-organisation-name', 'my-mimir-copy-two');
+  assert.ok(long.length <= 34);
+  assert.match(long, /^[a-z0-9-]+$/);
+  assert.notEqual(long, appName('a-very-long-organisation-name', 'my-mimir-copy-three'));
+  assert.equal(appName('O', 'My.Repo_1'), 'mimir-o-my-repo-1');
 });

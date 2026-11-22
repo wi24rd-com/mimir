@@ -8,7 +8,7 @@
 // In encrypted mode it asks for your passphrase. Nothing is written to disk.
 import { fileURLToPath } from 'node:url';
 import { decryptJson } from './lib/crypto.mjs';
-import { askHidden, readDataBranch } from './lib/data.mjs';
+import { askHidden, readDataBranch, workflowState } from './lib/data.mjs';
 import { demoState } from './lib/demo.mjs';
 import { TEXT, pickLang } from '../docs/lib/i18n.js';
 import { summarize } from '../docs/lib/summary.js';
@@ -21,12 +21,14 @@ export function parseArgs(argv, env = {}) {
   return { days, lang: pickLang(value('--lang') ?? env.LANG), demo: argv.includes('--demo') };
 }
 
-export function render(summary, lang) {
+// workflow: what GitHub says about the collecting workflow, when it was asked.
+export function render(summary, lang, { workflow = null } = {}) {
   const t = TEXT[lang];
   const pad = (s, w) => String(s).padEnd(w);
   const num = (x, w) => t.num(x).padStart(w);
   const lines = ['', `${t.title}  ${summary.health.lastRun ? t.collected(t.hoursAgo(summary.health.ageHours)) : t.never}`, ''];
-  if (summary.health.stale && summary.health.lastRun) lines.push(`! ${t.staleTitle}. ${t.staleBody(Math.round(summary.health.ageHours))}`, '');
+  const paused = workflow && workflow !== 'active';
+  if (summary.health.stale && summary.health.lastRun) lines.push(`! ${t.staleTitle}. ${paused ? (workflow === 'disabled_inactivity' ? t.pausedInactive : t.pausedOff) : t.staleBody(Math.round(summary.health.ageHours))}`, '');
   if (summary.health.errors.length) {
     lines.push(`! ${t.errorsTitle}`);
     for (const e of summary.health.errors) lines.push(`    ${t.errorLine(e)}`);
@@ -68,7 +70,11 @@ async function main() {
       state = data.body;
     }
   }
-  process.stdout.write(render(summarize(state, { days: args.days }), args.lang));
+  const summary = summarize(state, { days: args.days });
+  // Only when collection looks stopped: ask GitHub whether the workflow was switched off.
+  let workflow = null;
+  if (!args.demo && summary.health.stale && summary.health.lastRun) { try { workflow = workflowState().state; } catch { /* the plain warning stays */ } }
+  process.stdout.write(render(summary, args.lang, { workflow }));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

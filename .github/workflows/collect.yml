@@ -106,3 +106,26 @@ jobs:
           if [ -n "$number" ]; then
             gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "Collection is working again."
           fi
+
+      # GitHub switches scheduled workflows off after 60 days without activity,
+      # and Mimir only commits to the "data" branch. After 45 quiet days on the
+      # main branch this opens one issue, so you hear about it while there is time.
+      - name: Warn in good time before GitHub pauses the schedule
+        if: ${{ !cancelled() }}
+        run: node src/guard.mjs
+
+  # Switching a workflow on again is what keeps GitHub from pausing its schedule.
+  # It is a job of its own, so the job that collects does not get this permission.
+  keep-alive:
+    if: ${{ vars.MIMIR_APP_CLIENT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write # switches this workflow on; nothing else is done with it
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Keep the schedule switched on
+        run: |
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/collect.yml/enable" \
+            || echo "::warning::Could not confirm that the schedule is switched on."

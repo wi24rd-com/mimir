@@ -1,11 +1,12 @@
 // Wi24rd Mimir dashboard, built with Wi24rd UI Kit 2 (window.Kit, window.Tema,
-// window.KitSprog from kit/). No requests to anyone but the place the figures
-// are stored. Everything shown is built with DOM nodes, never with HTML
+// window.KitSprog from kit/). No requests to anyone but GitHub: the place the
+// figures are stored, and one question about the workflow when collection has stopped. Everything shown is built with DOM nodes, never with HTML
 // strings, because repository names and referrers are outside data.
 import { BADGES, VISIBILITIES, validateConfig } from './lib/config.js';
+import { demoState } from './lib/demo.js';
 import { LANGS, TEXT, pickLang, plainTexts } from './lib/i18n.js';
 import { WrongPassphrase, isEnvelope, openEnvelope } from './lib/open.js';
-import { badgeCode, badgeList, pagesUrl } from './lib/public.js';
+import { badgeCode, badgeList, pagesUrl, publicFigures, publicWell } from './lib/public.js';
 import { qr, qrPath } from './lib/qr.js';
 import { BioUnsupported, abilities, forget, recall, rememberBio, rememberPlain, remembered } from './lib/remember.js';
 import { combineSeries, mergeReferrers, summarize } from './lib/summary.js';
@@ -27,7 +28,10 @@ Kit.registrerIkoner({ opdater: [['path', { d: 'M20 11a8 8 0 0 0-14.3-4.9L4 8' }]
 const VIEWS = ['overview', 'traffic', 'downloads', 'sources', 'well'];
 const ui = { days: 14, state: null, pass: null, envelope: null, source: null, config: null, view: 'overview', repo: 'all', error: null,
   // public: the figures the owner published. can: what this device can remember. device: 'bio', 'plain' or null.
-  public: null, can: { plain: false, bio: false }, device: null, front: false, locked: false, notice: null };
+  public: null, can: { plain: false, bio: false }, device: null, front: false, locked: false, notice: null,
+  // held: the demo's figures while its front page is shown. entered: the visitor went past the front page.
+  // workflow: what GitHub says about the collecting workflow, asked only when collection looks stopped.
+  held: null, entered: false, workflow: undefined };
 
 // "?lang=da&theme=moerk&days=30&view=owner/name" opens the page in a given state.
 const query = new URLSearchParams(location.search);
@@ -64,12 +68,35 @@ async function getJson(url) {
 async function locate() {
   try {
     const source = await getJson('./mimir-source.json');
-    if (source.mode === 'local') return { ...source, stateUrls: ['./data/state'], configUrl: './data/config', publicUrl: './data/public' };
+    if (source.mode === 'local') return { ...source, stateUrls: ['./data/state'], configUrl: './data/config', publicUrl: './data/public', workflowUrl: source.demo ? null : './data/workflow' };
   } catch { /* not served by the local command: assume GitHub Pages */ }
+  // "?demo" shows invented figures, made in this browser. "?demo=front" starts on the page a visitor meets.
+  if (query.has('demo')) return { mode: 'pages', demo: true, repository: null, branch: 'main', front: query.get('demo') === 'front' };
   const owner = location.hostname.split('.')[0];
   const repo = location.pathname.split('/').filter(Boolean)[0] ?? '';
   const raw = `https://raw.githubusercontent.com/${owner}/${repo}`;
-  return { mode: 'pages', repository: `${owner}/${repo}`, branch: 'main', stateUrls: [`${raw}/data/state.enc`, `${raw}/data/state.json`], configUrl: `${raw}/main/mimir.json`, publicUrl: `${raw}/data/public.json`, front: true };
+  return { mode: 'pages', repository: `${owner}/${repo}`, branch: 'main', stateUrls: [`${raw}/data/state.enc`, `${raw}/data/state.json`], configUrl: `${raw}/main/mimir.json`, publicUrl: `${raw}/data/public.json`, front: true,
+    workflowUrl: `https://api.github.com/repos/${owner}/${repo}/actions/workflows/collect.yml` };
+}
+
+// Asked once, and only when nothing has been collected for a while: has GitHub
+// switched the collecting workflow off? The answer says why collection stopped.
+async function askWorkflow() {
+  ui.workflow = null;
+  if (!ui.source?.workflowUrl) return;
+  try {
+    const answer = await getJson(ui.source.workflowUrl);
+    if (typeof answer?.state === 'string' && /^[a-z_]{1,40}$/.test(answer.state)) ui.workflow = answer.state;
+  } catch { /* no answer: the plain "collection has stopped" stays */ }
+  if (ui.workflow && ui.workflow !== 'active') draw();
+}
+
+// The demo on GitHub Pages: the same invented figures as "--demo", with everything published.
+function demoSource() {
+  const state = demoState();
+  const all = { version: 1, visibility: 'public', repos: Object.keys(state.repos), public_badges: [...BADGES] };
+  const figures = publicFigures(all, state).map(({ id, repo, value }) => (repo ? { id, repo, value } : { id, value }));
+  return { state, config: validateConfig(all), public: { mimir: 1, day: new Date().toISOString().slice(0, 10), figures, well: publicWell(all, state) } };
 }
 
 async function loadStateFile(source) {
@@ -569,7 +596,8 @@ function frontView() {
   const well = publishedWell();
   const nodes = [h('h1', { 'data-t': 'frontTitle' }), h('p', { 'data-t': figures.length || well ? 'frontBody' : 'frontBodyNone' })];
   // The way in comes first, so the owner does not have to scroll past the picture.
-  nodes.push(Kit.knap({ t: 'frontOpen', variant: 'primary', ikon: 'laas', ved: () => { ui.front = false; draw(); } }));
+  if (ui.held) nodes.push(Kit.banner({ variant: 'info', tekst: t.frontDemo }));
+  nodes.push(Kit.knap({ t: 'frontOpen', variant: 'primary', ikon: 'laas', ved: () => { ui.front = false; ui.entered = true; if (ui.held) { ui.state = ui.held; ui.held = null; } draw(); } }));
   if (well) nodes.push(h('p', { class: 'hj' }, t.frontWell(well.days)), ...wellView(well.summary, well.summary, false).nodes);
   if (figures.length) {
     const table = Kit.tabel({
@@ -594,9 +622,11 @@ function draw() {
   buildShell();
   const t = L();
   if (ui.error) {
-    shell.flade.replaceChildren(Kit.tomTilstand({ ikon: 'mappe', t: 'loadFailed', p: { t: 'loadFailedHelp' }, handling: { t: 'refresh', variant: 'primary', ved: () => start() } }));
+    // On GitHub Pages a copy that has not collected yet lands here, so the demo is offered.
+    const demo = ui.source?.mode === 'pages' ? { t: 'tryDemo', ved: () => { location.search = '?demo'; } } : undefined;
+    shell.flade.replaceChildren(Kit.tomTilstand({ ikon: 'mappe', t: 'loadFailed', p: { t: 'loadFailedHelp' }, handling: { t: 'refresh', variant: 'primary', ved: () => start() }, anden: demo }));
     footer(null);
-  } else if (!ui.state && ui.envelope) {
+  } else if (!ui.state && (ui.envelope || (ui.held && ui.front))) {
     const notice = ui.notice;
     ui.notice = null;
     shell.flade.replaceChildren(ui.front ? frontView() : unlockView(notice ? t[notice.key] : undefined, notice?.variant ?? 'field'));
@@ -622,7 +652,14 @@ function draw() {
       page.append(Kit.banner({ variant: ui.notice.variant, tekst: ui.notice.text ?? t[ui.notice.key], handling }));
       ui.notice = null;
     }
-    if (all.health.stale && all.health.lastRun) page.append(Kit.banner({ variant: 'danger', tekst: `${t.staleTitle}. ${t.staleBody(Math.round(all.health.ageHours))}` }));
+    if (all.health.stale && all.health.lastRun) {
+      if (ui.workflow === undefined) askWorkflow();
+      const paused = ui.workflow && ui.workflow !== 'active';
+      const actions = `https://github.com/${home()}/actions/workflows/collect.yml`;
+      page.append(paused
+        ? Kit.banner({ variant: 'danger', tekst: `${t.staleTitle}. ${ui.workflow === 'disabled_inactivity' ? t.pausedInactive : t.pausedOff}`, handling: { tekst: t.pausedOpen, ved: () => { window.open(actions, '_blank', 'noopener,noreferrer'); } } })
+        : Kit.banner({ variant: 'danger', tekst: `${t.staleTitle}. ${t.staleBody(Math.round(all.health.ageHours))}` }));
+    }
     for (const e of all.health.errors) page.append(Kit.banner({ variant: 'warn', tekst: t.errorLine(e) }));
     let chip = null;
     if (!all.repos.length) {
@@ -753,6 +790,18 @@ async function start() {
   if (!ui.state && !ui.envelope) draw();
   try {
     ui.source = await locate();
+    ui.workflow = undefined;
+    if (ui.source.mode === 'pages' && ui.source.demo) {
+      const demo = demoSource();
+      ui.config = demo.config;
+      ui.public = demo.public;
+      ui.envelope = null;
+      ui.front = Boolean(ui.source.front) && !ui.entered;
+      ui.held = ui.front ? demo.state : null;
+      ui.state = ui.front ? null : demo.state;
+      draw();
+      return;
+    }
     const file = await loadStateFile(ui.source);
     try { ui.config = validateConfig(await getJson(ui.source.configUrl)); } catch { ui.config = null; }
     try { ui.public = await getJson(ui.source.publicUrl); } catch { ui.public = null; }

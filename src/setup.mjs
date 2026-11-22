@@ -11,7 +11,7 @@
 // from GitHub into your repository's secrets; it is never written to disk or
 // shown on screen.
 import http from 'node:http';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
@@ -20,9 +20,19 @@ import { generatePassphrase } from './lib/crypto.mjs';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// GitHub App names are unique across GitHub and at most 34 characters. The
+// repository is part of the name, so a second copy of Mimir on the same account
+// gets its own app. A long name is cut and given a short mark made from the full one.
+export function appName(owner, repo) {
+  const full = `mimir-${owner}-${repo}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  if (full.length <= 34) return full;
+  return `${full.slice(0, 29).replace(/-+$/, '')}-${createHash('sha256').update(full).digest('hex').slice(0, 4)}`;
+}
+
 export function buildManifest({ owner, repoUrl, port }) {
+  const repo = repoUrl.replace(/\/+$/, '').split('/').pop();
   return {
-    name: `mimir-${owner}`.slice(0, 34),
+    name: appName(owner, repo),
     url: repoUrl,
     description: 'Reads traffic figures for my own repositories. Created by Wi24rd Mimir.',
     hook_attributes: { url: repoUrl, active: false },

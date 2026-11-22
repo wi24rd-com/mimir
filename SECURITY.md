@@ -19,7 +19,15 @@ no promised response time.
   keep the generated one, or choose one that is as hard to guess.
 - The workflow reads traffic figures with a token that lives for one hour and
   has one read permission. It writes only to the `data` branch of its own
-  repository.
+  repository. A second job may switch the Collect workflow on again
+  (`actions: write`) and does nothing else; it holds neither the app key nor
+  the passphrase.
+- The dashboard fetches from GitHub only. When nothing has been collected for
+  36 hours it asks `api.github.com` once whether the collecting workflow is
+  switched on. That request carries the repository's name and no figures.
+- `node src/update.mjs` takes Mimir's files from a tagged version of
+  `wi24rd-com/mimir`. It replaces only the paths that version lists, refuses
+  paths outside Mimir's own files, and commits nothing.
 - "Remember on this device" stores your passphrase in the browser. Read
   [On your phone](README.md#on-your-phone) before you use it on an address you
   share with other pages.

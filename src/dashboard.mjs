@@ -11,7 +11,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { encryptJson } from './lib/crypto.mjs';
-import { readDataBranch, readPublished, repoSlug } from './lib/data.mjs';
+import { readDataBranch, readPublished, repoSlug, workflowState } from './lib/data.mjs';
 import { publicFigures, publicWell } from '../docs/lib/public.js';
 import { demoState } from './lib/demo.mjs';
 
@@ -23,7 +23,7 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; font-src '
 
 // root: folder with the dashboard files. getState / getConfig: functions that
 // return the JSON to serve, or throw with a message for the page to show.
-export function createDashboardServer({ root, getState, getConfig, getPublic = () => { throw new Error('nothing is published'); }, source }) {
+export function createDashboardServer({ root, getState, getConfig, getPublic = () => { throw new Error('nothing is published'); }, getWorkflow = () => { throw new Error('not asked'); }, source }) {
   const base = resolve(root);
   let port = 0;
   const send = (res, status, type, body) => {
@@ -39,8 +39,9 @@ export function createDashboardServer({ root, getState, getConfig, getPublic = (
     let path;
     try { path = decodeURIComponent(new URL(req.url, `http://127.0.0.1:${port}`).pathname); } catch { return send(res, 400, TYPES['.txt'], 'Bad request'); }
     if (path === '/mimir-source.json') return json(res, 200, source);
-    if (path === '/data/state' || path === '/data/config' || path === '/data/public') {
-      try { return json(res, 200, path === '/data/state' ? getState() : path === '/data/config' ? getConfig() : getPublic()); }
+    if (path === '/data/state' || path === '/data/config' || path === '/data/public' || path === '/data/workflow') {
+      const answer = { '/data/state': getState, '/data/config': getConfig, '/data/public': getPublic, '/data/workflow': getWorkflow }[path];
+      try { return json(res, 200, answer()); }
       catch (e) { return json(res, 404, { error: e.message }); }
     }
     if (path === '/') path = '/index.html';
@@ -65,6 +66,8 @@ function main() {
     : () => JSON.parse(readFileSync(join(here, 'mimir.json'), 'utf8'));
   let getState;
   let getPublic;
+  // Asked by the page only when collection looks stopped: is the workflow still switched on?
+  const getWorkflow = demo ? undefined : () => workflowState({ cwd: here });
   // In the demo every figure that can be published is, so the front page has something to show.
   const demoAll = (state) => ({ repos: Object.keys(state.repos), public_badges: ['total_downloads', 'stars', 'repo_downloads', 'well'] });
   const demoPublic = (state) => () => ({ mimir: 1, day: new Date().toISOString().slice(0, 10), figures: publicFigures(demoAll(state), state).map(({ id, repo, value }) => (repo ? { id, repo, value } : { id, value })), well: publicWell(demoAll(state), state) });
@@ -87,7 +90,7 @@ function main() {
   }
   // --front shows the page a visitor meets on GitHub Pages before the lock.
   const front = process.argv.includes('--front');
-  const server = createDashboardServer({ root: join(here, 'docs'), getState, getConfig, getPublic, source: { mode: 'local', demo, front, repository: demo ? null : repoSlug(here), branch: 'main' } });
+  const server = createDashboardServer({ root: join(here, 'docs'), getState, getConfig, getPublic, getWorkflow, source: { mode: 'local', demo, front, repository: demo ? null : repoSlug(here), branch: 'main' } });
   server.ready.then((url) => {
     console.log(`Mimir dashboard${demo ? ' (demo, invented figures)' : ''}: ${url}\nPress Ctrl+C to stop.`);
     if (!process.argv.includes('--no-open')) {

@@ -32,6 +32,18 @@ export function readPublished({ cwd = process.cwd() } = {}) {
   return JSON.parse(r.out);
 }
 
+// What GitHub says about the collecting workflow: "active", "disabled_inactivity"
+// (switched off by GitHub after 60 days without activity), "disabled_manually", ...
+// Asked through the GitHub CLI, so it also works for a private repository.
+export function workflowState({ cwd = process.cwd(), run = spawnSync } = {}) {
+  const slug = repoSlug(cwd);
+  if (!slug) throw new Error('this clone has no GitHub address');
+  const r = run('gh', ['api', `repos/${slug}/actions/workflows/collect.yml`, '--jq', '.state'], { cwd, encoding: 'utf8' });
+  const state = String(r.stdout ?? '').trim();
+  if (r.error || r.status !== 0 || !/^[a-z_]{1,40}$/.test(state)) throw new Error('GitHub did not say whether the workflow is switched on');
+  return { state };
+}
+
 // "owner/name" of the repository this clone was made from, or null.
 export function repoSlug(cwd = process.cwd()) {
   const r = git(['remote', 'get-url', 'origin'], cwd);

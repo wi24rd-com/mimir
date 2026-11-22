@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDashboardServer } from '../src/dashboard.mjs';
 import { parseArgs, render } from '../src/show.mjs';
-import { readDataBranch, repoSlug } from '../src/lib/data.mjs';
+import { readDataBranch, repoSlug, workflowState } from '../src/lib/data.mjs';
 import { decryptJson, encryptJson } from '../src/lib/crypto.mjs';
 import { demoState } from '../src/lib/demo.mjs';
 import { WrongPassphrase, openEnvelope } from '../docs/lib/open.js';
@@ -73,6 +73,11 @@ test('dashboard server: figures, settings and source are served; a missing data 
     assert.deepEqual(JSON.parse((await get(`${url}data/state`)).body), { schema: 1, repos: {} });
     assert.equal(JSON.parse((await get(`${url}data/config`)).body).visibility, 'public');
     assert.equal(JSON.parse((await get(`${url}mimir-source.json`)).body).repository, 'o/mimir');
+    // Not asked for unless the caller gives a way to ask.
+    assert.equal((await get(`${url}data/workflow`)).status, 404);
+  });
+  await withServer({ getWorkflow: () => ({ state: 'disabled_inactivity' }) }, async (url) => {
+    assert.deepEqual(JSON.parse((await get(`${url}data/workflow`)).body), { state: 'disabled_inactivity' });
   });
   await withServer({ getState: () => { throw new Error('there is no "data" branch yet'); } }, async (url) => {
     const res = await get(`${url}data/state`);
@@ -103,6 +108,30 @@ test('terminal view: warns when collection has stopped or was incomplete', () =>
   const text = render(summarize(state, { now, days: 14 }), 'en');
   assert.match(text, /Collection has stopped/);
   assert.match(text, /o\/a: your Mimir app is not installed/);
+  assert.match(text, /Check the Actions tab/);
+});
+
+test('terminal view: says why when GitHub has switched the workflow off', () => {
+  const state = demoState(now);
+  state.health.last_run = '2026-11-18T03:00:00Z';
+  const summary = summarize(state, { now, days: 14 });
+  assert.match(render(summary, 'en', { workflow: 'disabled_inactivity' }), /Collection has stopped\. GitHub has paused it because this repository had no activity for 60 days/);
+  assert.match(render(summary, 'da', { workflow: 'disabled_manually' }), /slået fra i dette repository/);
+  assert.match(render(summary, 'en', { workflow: 'active' }), /Check the Actions tab/);
+  // A workflow that is switched off is only mentioned when collection has actually stopped.
+  assert.ok(!render(summarize(demoState(now), { now, days: 14 }), 'en', { workflow: 'disabled_inactivity' }).includes('paused'));
+});
+
+test('workflow state: read through the GitHub CLI, and anything unexpected is refused', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mimir-wf-'));
+  execFileSync('git', ['init', '--quiet', dir]);
+  execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://github.com/o/mimir.git']);
+  const calls = [];
+  const answer = (stdout, status = 0) => (cmd, args) => { calls.push([cmd, ...args]); return { status, stdout }; };
+  assert.deepEqual(workflowState({ cwd: dir, run: answer('disabled_inactivity\n') }), { state: 'disabled_inactivity' });
+  assert.deepEqual(calls[0].slice(0, 3), ['gh', 'api', 'repos/o/mimir/actions/workflows/collect.yml']);
+  assert.throws(() => workflowState({ cwd: dir, run: answer('<html>', 0) }), /did not say/);
+  assert.throws(() => workflowState({ cwd: dir, run: answer('', 1) }), /did not say/);
 });
 
 test('figures are read from the data branch of a real git clone, encrypted and open', () => {
