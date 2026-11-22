@@ -219,7 +219,8 @@ const shell = {};
 
 function route() {
   const wanted = location.hash.slice(1);
-  ui.view = VIEWS.includes(wanted) ? wanted : 'overview';
+  // The Well is what you meet first; the other views are a tab away.
+  ui.view = VIEWS.includes(wanted) ? wanted : 'well';
 }
 function pick(repo) { if (repo === ui.repo) return; ui.repo = repo; draw(); }
 
@@ -343,6 +344,24 @@ function sourcesView(summary) {
   ] };
 }
 
+// One repository on its own: the chart of its views and clones, and its downloads and stars.
+function repoCard(r) {
+  const t = L();
+  const blank = (points) => points.map((p) => ({ ...p, count: 0, uniques: null, known: false }));
+  const chart = r.viewSeries.length || r.cloneSeries.length
+    ? lineChart([
+      { name: t.views, cls: 'mimir-s1', total: r.views, peak: r.viewUniquesPeak, points: r.viewSeries.length ? r.viewSeries : blank(r.cloneSeries) },
+      { name: t.clones, cls: 'mimir-s2', total: r.clones, peak: r.cloneUniquesPeak, points: r.cloneSeries.length ? r.cloneSeries : blank(r.viewSeries) },
+    ])
+    : Kit.tomTilstand({ lille: true, ikon: 'kalender', tekst: t.noTraffic });
+  const facts = h('p', { class: 'mimir-fakta' },
+    h('span', {}, `${t.downloads} `, h('b', {}, t.num(r.downloads))),
+    h('span', {}, `${t.inPeriod} `, h('b', {}, `+${t.num(r.downloadsGained)}`)),
+    h('span', {}, `${t.stars} `, h('b', {}, t.num(r.stars))));
+  const details = Kit.knap({ tekst: t.wellDetails, variant: 'ghost', aria: t.wellDetailsOf(r.short), ved: () => { ui.repo = r.name; location.hash = 'traffic'; } });
+  return Kit.kasse({ tekst: r.short, niveau: 3, handling: details, indhold: h('div', {}, chart, facts), fyld: true }).rod;
+}
+
 // ---------- the well ----------
 // Mimir's well seen from above, drawn from the figures (geometry in lib/well.js).
 // It is one view among five: the table beside it holds the same numbers.
@@ -459,11 +478,18 @@ function wellView(summary, all, pickable = true) {
     still.matches ? h('p', { class: 'muted' }, t.wellStill) : null);
   const table = Kit.tabel({
     titelT: 'tableRepos', raekkeHandling: pickable ? 'aabn' : 'ingen', vedAabn: (tr, data) => { ui.repo = data; location.hash = 'traffic'; }, layout: 'auto',
-    kolonner: [{ t: 'repository', hoved: true }, { t: 'views', tal: true }, { t: 'clones', tal: true }, { t: 'inPeriod', tal: true }],
+    kolonner: [{ t: 'repository', hoved: true }, { t: 'views', tal: true }, { t: 'clones', tal: true }, { t: 'downloadsInPeriod', tal: true }],
     raekker: repos.map((r) => ({ celler: [r.short, t.num(r.views), t.num(r.clones), `+${t.num(r.downloadsGained)}`], data: r.name })),
   });
   const side = h('div', { class: 'b-side' }, Kit.kasse({ t: 'repositories', indhold: Kit.tabelRul(table, { ariaT: 'tableScroll' }).rod, fyld: true }).rod, Kit.kasse({ t: 'wellReading', indhold: reading }).rod);
-  return { chip: t.nDays(daily.length), nodes: [h('div', { class: 'mimir-broend' }, h('div', { class: 'b-billede' }, svg, tip), side)] };
+  const nodes = [h('div', { class: 'mimir-broend' }, h('div', { class: 'b-billede' }, svg, tip), side)];
+  // Below the picture: each repository with its own chart, to scroll through. The
+  // published Well on the front page has no figures per day for each, so not there.
+  if (pickable) {
+    const shown = chosen ? repos.filter((r) => r.name === chosen) : repos;
+    if (shown.length) nodes.push(h('h2', { class: 'mimir-afsnit' }, chosen ? t.wellOne : t.wellEach), h('div', { class: 'mimir-hver' }, shown.map(repoCard)));
+  }
+  return { chip: t.nDays(daily.length), nodes };
 }
 
 // The repository Mimir runs in, as "owner/name". The demo has none.

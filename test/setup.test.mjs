@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { appName, buildManifest, pages, startFlow } from '../src/setup.mjs';
+import { appName, buildManifest, firstCollection, pages, startFlow } from '../src/setup.mjs';
 
 function get(url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -135,4 +135,69 @@ test('pages: left off when the owner says no, and the manual way is given when G
   const refused = pagesWorld({ create: false });
   assert.equal(await pages({ slug: 'o/mimir', gh: refused.gh, ask: async () => 'y', say: refused.say }), null);
   assert.match(refused.said.join(' '), /Deploy from a branch/);
+});
+
+// A stand-in for the GitHub CLI during the first collection. "runs" is what each
+// started collection ends as; "logs" is what its failed log says.
+function collecting({ runs, logs = [], start = true }) {
+  const calls = [];
+  const said = [];
+  let started = 0;
+  const gh = (args) => {
+    calls.push(args.join(' '));
+    if (args[0] === 'workflow') { if (!start) return { ok: false, out: '' }; started++; return { ok: true, out: '' }; }
+    if (args[1] === 'list') return { ok: true, out: JSON.stringify(started ? [{ databaseId: 100 + started, status: runs[started - 1] === 'running' ? 'in_progress' : 'completed', conclusion: runs[started - 1] }] : []) };
+    if (args[1] === 'view') return { ok: true, out: logs[started - 1] ?? '' };
+    return { ok: false, out: '' };
+  };
+  let asked = 0;
+  let opened = 0;
+  const run = (options = {}) => firstCollection({ gh, say: (line) => said.push(line), ask: async () => { asked++; return ''; }, open: () => { opened++; }, wait: async () => {}, installUrl: 'https://github.com/apps/mimir-o-mimir/installations/new', patience: 3, ...options });
+  return { run, calls, said, asked: () => asked, opened: () => opened, started: () => started };
+}
+// The lines GitHub writes when the app has no installation on the account (from a real run).
+const NOT_INSTALLED = "collect\tGet a short-lived token\t    url: 'https://api.github.com/users/o/installation',\ncollect\tGet a short-lived token\t    status: 404,\ncollect\tGet a short-lived token\t##[error]Not Found - https://docs.github.com/rest/apps/apps#get-a-user-installation-for-the-authenticated-app";
+
+test('first collection: setup waits for it and says when the figures are there', async () => {
+  const w = collecting({ runs: ['success'] });
+  assert.equal(await w.run(), 'ok');
+  assert.match(w.said.join('\n'), /Collected\. Your figures are in the "data" branch/);
+  assert.equal(w.asked(), 0);
+});
+
+test('first collection: an app that is not installed is said plainly, with the link, and tried again after Enter', async () => {
+  const w = collecting({ runs: ['failure', 'success'], logs: [NOT_INSTALLED] });
+  assert.equal(await w.run(), 'ok');
+  const text = w.said.join('\n');
+  assert.match(text, /your app is not installed on your account yet/);
+  assert.match(text, /https:\/\/github\.com\/apps\/mimir-o-mimir\/installations\/new/);
+  assert.equal(w.asked(), 1);
+  assert.equal(w.opened(), 1);
+  assert.equal(w.started(), 2);
+});
+
+test('first collection: it gives up after three tries and leaves the command to run', async () => {
+  const w = collecting({ runs: ['failure', 'failure', 'failure'], logs: [NOT_INSTALLED, NOT_INSTALLED, NOT_INSTALLED] });
+  assert.equal(await w.run(), 'failed');
+  assert.equal(w.started(), 3);
+  assert.equal(w.asked(), 2);
+  assert.match(w.said.join('\n'), /gh workflow run collect\.yml/);
+});
+
+test('first collection: repositories the app cannot read are named, and other failures point to the log', async () => {
+  const partial = collecting({ runs: ['failure'], logs: ['collect\tCollect\t  Your Mimir app cannot read traffic for: o/a, o/b\ncollect\tCollect\t  Add them under'] });
+  assert.equal(await partial.run(), 'partial');
+  assert.match(partial.said.join('\n'), /cannot read traffic for: o\/a, o\/b/);
+  const other = collecting({ runs: ['failure'], logs: ['collect\tRead mimir.json\tmimir.json: not valid JSON'] });
+  assert.equal(await other.run(), 'failed');
+  assert.match(other.said.join('\n'), /gh run view 101 --log-failed/);
+});
+
+test('first collection: a run that takes long, or cannot be started, is not reported as done', async () => {
+  const slow = collecting({ runs: ['running'] });
+  assert.equal(await slow.run(), 'running');
+  assert.match(slow.said.join('\n'), /still running/);
+  const none = collecting({ runs: [], start: false });
+  assert.equal(await none.run(), 'not-started');
+  assert.match(none.said.join('\n'), /Actions tab/);
 });

@@ -118,7 +118,8 @@ Setup then takes you through it:
 5. It creates your GitHub App and stores its key. In `encrypted` mode it makes
    your passphrase and shows it once.
 6. It switches GitHub Pages on and gives you the address of your dashboard.
-7. It starts the first collection.
+7. It starts the first collection and waits for it. If the app turns out not
+   to be installed, it says so, gives the link, and tries again when you are ready.
 
 Setup can be run again. What is already done is skipped, so it also finishes a
 setup that was interrupted. To change the settings later, edit `mimir.json` or
@@ -173,10 +174,11 @@ figures, and `--lang da` for Danish in the terminal. `--front` shows the page a
 visitor would meet on GitHub Pages.
 
 The dashboard is in English and Danish, light and dark, and works on a phone.
-It has four tabs with tables and charts (Overview, Traffic, Downloads, Sources),
-a filter for one repository, and a fifth tab, The Well, that draws the same
-figures as one picture: a stone per day around the rim and a point per
-repository on the water. A settings dialog writes a
+It opens on The Well, which draws your figures as one picture: a stone per day
+around the rim and a point per repository on the water. Under it every
+repository has a box of its own with a chart of views and clones, to scroll
+through. Four more tabs hold the tables and charts (Overview, Traffic,
+Downloads, Sources), and a filter narrows everything to one repository. A settings dialog writes a
 new `mimir.json` for you to save on GitHub. The page itself cannot change your
 repository. It fetches from GitHub only: your figures, and, when nothing has
 been collected for 36 hours, one question about whether the collecting workflow

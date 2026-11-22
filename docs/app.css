@@ -79,6 +79,12 @@ body { margin: 0; }
 .b-billede { position: relative; max-width: 640px; }
 .b-billede svg { display: block; width: 100%; height: auto; }
 .b-side { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+/* Under the Well: one box per repository, two beside each other where there is room. */
+.mimir-afsnit { margin: var(--space-4) 0 0; padding: 0 var(--space-1); font-family: var(--h2-family); font-size: var(--h2-size); line-height: var(--h2-line); font-weight: var(--h2-weight); }
+.mimir-hver { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-items: start; }
+.mimir-hver > .kasse:only-child { grid-column: 1 / -1; }
+.mimir-fakta { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0; padding: 0 var(--space-4) var(--space-3); font-size: var(--small-size); line-height: var(--small-line); color: var(--data-label); }
+.mimir-fakta b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .b-kant { fill: var(--surface-raised); stroke: var(--border); stroke-width: 1; }
 .b-sten { stroke: var(--surface-raised); stroke-width: 1; }
 .b-sten.n0 { fill: var(--map-land); stroke: var(--border); }
@@ -130,7 +136,7 @@ path.b-sten:hover { stroke: var(--text); stroke-width: 2; }
   .nav { display: none; }
   .mimir-smal { display: block; }
   .mimir-side > h1 { font-size: var(--h1-size); line-height: var(--h1-line); }
-  .mimir-to, .mimir-broend { grid-template-columns: minmax(0, 1fr); }
+  .mimir-to, .mimir-broend, .mimir-hver { grid-template-columns: minmax(0, 1fr); }
   .titel small { display: none; }
   .titel b { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
   .cmd-faner { overflow-x: auto; gap: 0; padding-left: var(--space-1); padding-right: var(--space-1); }

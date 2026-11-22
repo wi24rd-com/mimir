@@ -138,6 +138,48 @@ export async function pages({ slug, gh: ghRun, ask, say }) {
   return url;
 }
 
+const newestRun = (ghRun) => {
+  const r = ghRun(['run', 'list', '--workflow', 'collect.yml', '--limit', '1', '--json', 'databaseId,status,conclusion'], { quiet: true });
+  try { return r.ok ? JSON.parse(r.out)[0] ?? null : null; } catch { return null; }
+};
+
+// Starts the first collection and stays with it until it has finished, because
+// this is where a setup that looks done turns out not to be: an app that was
+// created but never installed makes the collection fail a few seconds in.
+// Returns 'ok', 'partial', 'failed', 'running' or 'not-started'.
+export async function firstCollection({ gh: ghRun, ask, say, installUrl, open = () => {}, wait = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 3, patience = 48 }) {
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    const before = newestRun(ghRun)?.databaseId ?? null;
+    if (!ghRun(['workflow', 'run', 'collect.yml'], { quiet: true }).ok) { say('Could not start the first collection. Start it from the Actions tab ("Collect" > "Run workflow").'); return 'not-started'; }
+    say('First collection started. Waiting for it to finish; it takes about a minute.');
+    let run = null;
+    for (let i = 0; i < patience; i++) {
+      await wait(5000);
+      const newest = newestRun(ghRun);
+      if (newest && newest.databaseId !== before && newest.status === 'completed') { run = newest; break; }
+    }
+    if (!run) { say('  It is still running. Follow it with: gh run watch'); return 'running'; }
+    if (run.conclusion === 'success') { say('  Collected. Your figures are in the "data" branch.'); return 'ok'; }
+    const log = ghRun(['run', 'view', String(run.databaseId), '--log-failed'], { quiet: true }).out;
+    if (/\/installation'?/.test(log) && /Not Found|status: 404/.test(log)) {
+      say(`  The collection could not get access: your app is not installed on your account yet.\n  Install it here, choose "Only select repositories" and pick the repositories Mimir follows:\n    ${installUrl}`);
+      if (attempt === tries) break;
+      open(installUrl);
+      await ask('  Press Enter when it says "Installed", and the collection is tried again. ');
+      continue;
+    }
+    const missing = /Your Mimir app cannot read traffic for: ([^\n]+)/.exec(log)?.[1]?.trim();
+    if (missing) {
+      say(`  Collected, but the app cannot read traffic for: ${missing}\n  Add them under "Repository access" at https://github.com/settings/installations\n  The next collection picks them up; nothing is lost in the meantime.`);
+      return 'partial';
+    }
+    say(`  The first collection did not complete. See why with: gh run view ${run.databaseId} --log-failed`);
+    return 'failed';
+  }
+  say('  The collection still cannot get access. Install the app, then run: gh workflow run collect.yml');
+  return 'failed';
+}
+
 async function main() {
   const force = process.argv.includes('--force');
   const say = console.log;
@@ -197,23 +239,24 @@ async function main() {
 
     if (slug) {
       const install = `https://github.com/apps/${slug}/installations/new`;
-      say(`\nStep 2 of 2: choose the repositories the app may read.\n  Choose "Only select repositories" and pick the ones listed above.\n  If nothing opens, go to: ${install}\n`);
+      say(`\nStep 2 of 2: install the app and choose the repositories it may read.\n  Choose "Only select repositories", pick these, and press Install:\n${config.repos.map((r) => `      ${r}`).join('\n')}\n  If nothing opens, go to: ${install}\n`);
       openBrowser(install);
-      await rl.question('Press Enter when the app is installed. ');
+      await rl.question('Press Enter when GitHub says the app is installed. ');
     }
 
     // The dashboard on GitHub Pages needs a public repository.
     say('');
     const address = isPrivate ? null : await pages({ slug: repo.nameWithOwner, gh, ask, say });
 
-    if (gh(['workflow', 'run', 'collect.yml']).ok) say(`\nFirst collection started. Follow it with: gh run watch`);
-    else say('\nCould not start the first collection. Start it from the Actions tab ("Collect" > "Run workflow").');
+    say('');
+    const collected = await firstCollection({ gh, ask, say, installUrl: slug ? `https://github.com/apps/${slug}/installations/new` : 'https://github.com/settings/installations', open: openBrowser });
 
-    say('\nDone. From here:');
+    const done = collected === 'ok' || collected === 'partial';
+    say(done ? '\nDone. From here:' : '\nSetup is in place, but there are no figures yet. When the collection has run:');
     say('  node src/show.mjs          your figures in the terminal');
     say('  node src/dashboard.mjs     the dashboard on this computer');
     if (address) say(`  ${address}   the dashboard on GitHub Pages${config.visibility === 'encrypted' ? ', opened with your passphrase' : ''}`);
-    say('  Figures appear after the first collection, which takes about a minute. Collection then runs twice a day.\n');
+    say('  Collection runs twice a day from now on.\n');
   } finally {
     rl.close();
   }
