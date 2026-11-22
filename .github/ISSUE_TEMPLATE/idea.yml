@@ -1,0 +1,19 @@
+name: An idea
+description: Something Mimir could do, or do better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem, before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: markdown
+    attributes:
+      value: |
+        Mimir has no dependencies, sends nothing outside GitHub and is kept by one person. Ideas that fit that are the ones that can be built.

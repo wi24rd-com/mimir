@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/wi24rd-com/mimir/security/advisories/new
+    about: Report it privately. Do not open a public issue for it.
+  - name: How to set up, update and read your figures
+    url: https://github.com/wi24rd-com/mimir#setup
+    about: The README answers most questions about using Mimir.

@@ -279,6 +279,9 @@ The same tests run on GitHub at every push to the main branch (`.github/workflow
 
 No dependencies. Built with [ASEWAVE](https://asewave.org).
 
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to send a change, and
+[SUPPORT.md](SUPPORT.md) where to turn with a question.
+
 ## License
 
 Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The fonts in
