@@ -14,8 +14,11 @@ test('the version is the same everywhere it is stated, and the changelog has it'
   assert.match(read('CHANGELOG.md'), new RegExp(`^## ${pkg.version.replaceAll('.', '\\.')} \\(\\d{4}-\\d{2}-\\d{2}\\)$`, 'm'));
 });
 
-test('the README of Mimir itself states the version', (t) => {
+test('the READMEs of Mimir itself state the version', (t) => {
   // A copy keeps its own README through an update, so this applies to the template only.
   if (!read('mimir.json').includes(EXAMPLE_REPO)) { t.skip('this copy has its own README'); return; }
-  assert.match(read('README.md'), new RegExp(`version ${VERSION.replaceAll('.', '\\.')}`));
+  // Both languages, so the Danish one cannot be left behind at a release.
+  for (const file of ['README.md', 'README.da.md']) {
+    assert.match(read(file), new RegExp(`version ${VERSION.replaceAll('.', '\\.')}`), file);
+  }
 });

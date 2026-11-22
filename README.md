@@ -286,3 +286,5 @@ No dependencies. Built with [ASEWAVE](https://asewave.org).
 
 Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The fonts in
 `docs/kit/fonts/` are under the SIL Open Font License 1.1.
+
+[Dansk](README.da.md)
