@@ -12,7 +12,7 @@ how often a release file was downloaded. Mimir collects both twice a day with a
 GitHub Actions workflow and stores them in a `data` branch of your own copy of
 this repository. Nothing is sent to Wi24rd or to any third party.
 
-**Status: version 1.0.0, in daily use by its author.** Run for real: the
+**Status: version 1.0.1, in daily use by its author.** Run for real: the
 installer and the guided setup on a fresh copy, collection, the dashboard on
 GitHub Pages and on an iPhone, the badges, and the tests on GitHub. Not yet
 proven: that the guard keeps GitHub from pausing the schedule, which takes 60
@@ -30,6 +30,9 @@ See [`asewave/`](asewave/) for the evidence behind each of these, and
 **[Try the demo](https://wi24rd-com.github.io/mimir/?demo)** in your browser, or see
 [the page a visitor meets](https://wi24rd-com.github.io/mimir/?demo=front). The
 figures are invented and made in your browser; nothing is fetched.
+
+**[See it live](https://wi24rd-com.github.io/mimir-wi24rd/)**: Wi24rd's own figures, collected by Mimir and shown
+in the open. This badge is one of them: [![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fwi24rd-com%2Fmimir-wi24rd%2Fdata%2Fbadges%2Ftotal_downloads.json)](https://wi24rd-com.github.io/mimir-wi24rd/)
 
 ## A look around
 
