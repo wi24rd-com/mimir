@@ -12,15 +12,17 @@ how often a release file was downloaded. Mimir collects both twice a day with a
 GitHub Actions workflow and stores them in a `data` branch of your own copy of
 this repository. Nothing is sent to Wi24rd or to any third party.
 
-**Status: first version, in daily use by its author.** Collection, setup, the
-dashboard, GitHub Pages and the phone layout have been run for real. Not yet run
-for real: the badges, the published Well, and creating a copy with "Use this
-template". No release has been tagged. See [`asewave/`](asewave/) for what has
-been verified and what has not.
+**Status: version 1.0.0, in daily use by its author.** Run for real: the
+installer and the guided setup on a fresh copy, collection, the dashboard on
+GitHub Pages and on an iPhone, the badges, and the tests on GitHub. Not yet
+proven: that the guard keeps GitHub from pausing the schedule, which takes 60
+days to see. Not tried: Android, Safari itself, and Mimir as a home-screen app.
+See [`asewave/`](asewave/) for the evidence behind each of these, and
+[`CHANGELOG.md`](CHANGELOG.md) for what each version holds.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/screens/overview-dark.png">
-  <img src="assets/screens/overview-light.png" alt="The Mimir dashboard: a sentence with the totals for the last 14 days, and a table with views, clones, downloads and stars for three repositories" width="800">
+  <img src="assets/screens/overview-light.png" alt="The Mimir dashboard: a sentence with the totals for the last 14 days, and under it The Well, a ring with one stone per day and a point per repository, with a table of the figures beside it" width="800">
 </picture>
 
 *Every picture on this page shows the demo with invented figures.*
@@ -33,10 +35,10 @@ figures are invented and made in your browser; nothing is fetched.
 
 Mimir runs in a browser, on any computer and on a phone.
 
-| The Well | One repository over time |
+| A chart for every repository | One repository over time |
 |---|---|
-| <img src="assets/screens/well-dark.png" alt="The Well: a ring with one stone per day, a line for views per day, and one point per repository with rings for views" width="400"> | <img src="assets/screens/traffic-light.png" alt="A line chart of views and clones per day for one repository" width="400"> |
-| The same figures as one picture, with the table beside it. | Views and clones per day, kept beyond GitHub's 14 days. |
+| <img src="assets/screens/repos-dark.png" alt="Three boxes, one per repository, each with a line chart of views and clones per day and its downloads and stars" width="400"> | <img src="assets/screens/traffic-light.png" alt="A line chart of views and clones per day for one repository" width="400"> |
+| Under The Well on the start page, to scroll through. | Views and clones per day, kept beyond GitHub's 14 days. |
 
 | On a phone | What a visitor sees | Open on phone |
 |---|---|---|
@@ -174,11 +176,12 @@ figures, and `--lang da` for Danish in the terminal. `--front` shows the page a
 visitor would meet on GitHub Pages.
 
 The dashboard is in English and Danish, light and dark, and works on a phone.
-It opens on The Well, which draws your figures as one picture: a stone per day
-around the rim and a point per repository on the water. Under it every
+It opens on Overview: the totals in a sentence, then The Well, which draws
+your figures as one picture (a stone per day around the rim and a point per
+repository on the water) with a table of the figures beside it. Under it every
 repository has a box of its own with a chart of views and clones, to scroll
-through. Four more tabs hold the tables and charts (Overview, Traffic,
-Downloads, Sources), and a filter narrows everything to one repository. A settings dialog writes a
+through. Three more tabs hold the details (Traffic, Downloads, Sources), and a
+filter narrows everything to one repository. A settings dialog writes a
 new `mimir.json` for you to save on GitHub. The page itself cannot change your
 repository. It fetches from GitHub only: your figures, and, when nothing has
 been collected for 36 hours, one question about whether the collecting workflow

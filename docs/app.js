@@ -25,7 +25,7 @@ const L = () => TEXT[pickLang(Sprog.lang)];
 
 Kit.registrerIkoner({ opdater: [['path', { d: 'M20 11a8 8 0 0 0-14.3-4.9L4 8' }], ['path', { d: 'M4 4v4h4' }], ['path', { d: 'M4 13a8 8 0 0 0 14.3 4.9L20 16' }], ['path', { d: 'M20 20v-4h-4' }]], telefon: [['rect', { x: 7, y: 3, width: 10, height: 18, rx: 2 }], ['path', { d: 'M11 17.5h2' }]] });
 
-const VIEWS = ['overview', 'traffic', 'downloads', 'sources', 'well'];
+const VIEWS = ['overview', 'traffic', 'downloads', 'sources'];
 const ui = { days: 14, state: null, pass: null, envelope: null, source: null, config: null, view: 'overview', repo: 'all', error: null,
   // public: the figures the owner published. can: what this device can remember. device: 'bio', 'plain' or null.
   public: null, can: { plain: false, bio: false }, device: null, front: false, locked: false, notice: null,
@@ -219,8 +219,7 @@ const shell = {};
 
 function route() {
   const wanted = location.hash.slice(1);
-  // The Well is what you meet first; the other views are a tab away.
-  ui.view = VIEWS.includes(wanted) ? wanted : 'well';
+  ui.view = VIEWS.includes(wanted) ? wanted : 'overview';
 }
 function pick(repo) { if (repo === ui.repo) return; ui.repo = repo; draw(); }
 
@@ -257,7 +256,7 @@ function buildBand() {
   const periods = [[14, 'range14'], [30, 'range30'], [90, 'range90'], [null, 'rangeAll']];
   const band = Kit.commandBar(shell.band, {
     ariaT: 'cmdAria', udenFaner: true, mere: { t: 'more' },
-    visninger: { t: 'views_', som: 'faner', punkter: [{ id: 'overview', t: 'vOverview' }, { id: 'traffic', t: 'vTraffic' }, { id: 'downloads', t: 'vDownloads' }, { id: 'sources', t: 'vSources' }, { id: 'well', t: 'vWell', hoejre: true }] },
+    visninger: { t: 'views_', som: 'faner', punkter: [{ id: 'overview', t: 'vOverview' }, { id: 'traffic', t: 'vTraffic' }, { id: 'downloads', t: 'vDownloads' }, { id: 'sources', t: 'vSources' }] },
     faner: [{ id: 'start', grupper: [
       { t: 'gData', knapper: [{ id: 'refresh', t: 'refresh', ikon: 'opdater', pri: true, ved: () => refetch() }] },
       { t: 'gPeriod', knapper: periods.map(([days, key]) => ({ id: `period-${days ?? 'all'}`, t: key, ikon: 'kalender', trykket: ui.days === days, ved: () => { if (ui.days !== days) { ui.days = days; draw(); } } })) },
@@ -275,18 +274,12 @@ function toolbar(items, chipText) {
   return t;
 }
 
-function overviewView(summary) {
+// The start page: the totals in a sentence, The Well with the figures beside it,
+// and under that a box per repository with its own chart.
+function overviewView(summary, all) {
   const t = L();
   const [first, ...rest] = t.headline(summary);
-  const table = Kit.tabel({
-    titelT: 'tableRepos', raekkeHandling: 'aabn', vedAabn: (tr, data) => { ui.repo = data; location.hash = 'traffic'; }, layout: 'auto', fastFoerste: true,
-    kolonner: [
-      { t: 'repository', hoved: true }, { t: 'views', tal: true }, { t: 'peakColumn', tal: true },
-      { t: 'clones', tal: true }, { t: 'peakColumn', tal: true }, { t: 'downloads', tal: true }, { t: 'stars', tal: true },
-    ],
-    raekker: summary.repos.map((r) => ({ celler: [r.short, ...[r.views, r.viewUniquesPeak, r.clones, r.cloneUniquesPeak, r.downloads, r.stars].map((c) => t.num(c))], data: r.name })),
-  });
-  return { chip: t.nRepos(summary.repos.length), nodes: [h('h1', {}, first), h('p', { class: 'mimir-lede' }, rest.map((line) => h('span', {}, line))), Kit.tabelRul(table, { ariaT: 'tableScroll' }).rod, h('p', { class: 'mimir-note' }, t.uniquesNote)] };
+  return { chip: t.nRepos(summary.repos.length), nodes: [h('h1', {}, first), h('p', { class: 'mimir-lede' }, rest.map((line) => h('span', {}, line))), ...wellView(summary, all).nodes, h('p', { class: 'mimir-note' }, t.uniquesNote)] };
 }
 
 function trafficView(summary) {
@@ -364,7 +357,7 @@ function repoCard(r) {
 
 // ---------- the well ----------
 // Mimir's well seen from above, drawn from the figures (geometry in lib/well.js).
-// It is one view among five: the table beside it holds the same numbers.
+// It is the picture on the start page: the table beside it holds the same numbers.
 const still = matchMedia('(prefers-reduced-motion: reduce)');
 
 // pickable: false on the public front page, where there is one picture and nothing to filter.
@@ -691,7 +684,7 @@ function draw() {
     if (!all.repos.length) {
       page.append(Kit.tomTilstand({ ikon: 'kalender', t: 'emptyTitle', p: { t: 'noData' } }));
     } else {
-      const view = { overview: overviewView, traffic: trafficView, downloads: downloadsView, sources: sourcesView, well: (x) => wellView(x, all) }[ui.view](summary);
+      const view = { overview: (x) => overviewView(x, all), traffic: trafficView, downloads: downloadsView, sources: sourcesView }[ui.view](summary);
       chip = view.chip;
       page.append(...view.nodes.filter(Boolean));
     }

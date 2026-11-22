@@ -38,4 +38,4 @@ no promised response time.
 
 ## Supported versions
 
-Only the newest version on the `main` branch.
+The newest 1.x release. Take it with `node src/update.mjs`; older releases get no fixes.

@@ -10,7 +10,8 @@
     "LICENSE",
     "NOTICE",
     "SECURITY.md",
-    "install.sh"
+    "install.sh",
+    "CHANGELOG.md"
   ],
   "keep": [
     "docs/CNAME"
